@@ -6,7 +6,6 @@
 
 const gitCommands = {};
 
-// Initialize git commands
 gitCommands.help = function(args) {
     const cmd = args[0];
     
@@ -29,7 +28,7 @@ NAME
        git-add - Add file contents to the index
 
 SYNOPSIS
-       git add [-n] [-v] [--force | -u] [--] <pathspec>...
+       git add [-n] [-v] [--force | -u] [-A] [--] <pathspec>...
 
 DESCRIPTION
        Updates the index using the current found in the working tree.`,
@@ -254,33 +253,62 @@ gitCommands.status = function(args) {
 };
 
 gitCommands.add = function(args) {
+    const fs = window.fileSystemModule;
+    
+    // No arguments = error
     if (args.length === 0) {
         return { success: false, message: 'Nothing specified, nothing added.', xp: 0 };
     }
     
-    const fs = window.fileSystemModule;
+    // Check if git repo exists
     const gitDir = fs.readFile('.git/config');
-    
     if (!gitDir) {
-        return { success: false, message: 'fatal: not a git repository', xp: 0 };
+        return { success: false, message: 'fatal: not a git repository (or any of the parent directories): .git', xp: 0 };
     }
     
-    // Add all files
-    if (args.includes('--all') || args.includes('-A') || args.includes('.')) {
-        const allFiles = fs.listDirectory('.').filter(f => f.name !== '.git' && !window.gameState.gitState.staged.includes(f.name));
-        allFiles.forEach(f => window.gameState.gitState.staged.push(f.name));
-        return { success: true, message: `Added ${allFiles.length} file(s)`, xp: 15 };
+    // Handle special cases: . (current directory), * (all files), -A, --all
+    const addAll = args.includes('--all') || args.includes('-A') || args.includes('.') || args.includes('*');
+    
+    if (addAll) {
+        // Add all files in current directory (but not .git)
+        const allFiles = fs.listFiles('.').filter(f => f.name !== '.git');
+        let added = 0;
+        allFiles.forEach(f => {
+            if (!window.gameState.gitState.staged.includes(f.name)) {
+                window.gameState.gitState.staged.push(f.name);
+                added++;
+            }
+        });
+        return { success: true, message: `Added ${added} file(s)`, xp: 15 };
     }
     
     // Add specific files
     const files = args.filter(a => !a.startsWith('-'));
     let added = 0;
+    
     files.forEach(f => {
-        if (fs.readFile(f) && !window.gameState.gitState.staged.includes(f)) {
+        // Skip . and .. as they are directories, not files to add
+        if (f === '.' || f === '..') {
+            // Add all files instead
+            const allFiles = fs.listFiles('.').filter(f => f.name !== '.git');
+            allFiles.forEach(file => {
+                if (!window.gameState.gitState.staged.includes(file.name)) {
+                    window.gameState.gitState.staged.push(file.name);
+                    added++;
+                }
+            });
+            return;
+        }
+        
+        if (fs.exists(f) && !window.gameState.gitState.staged.includes(f)) {
             window.gameState.gitState.staged.push(f);
             added++;
         }
     });
+    
+    if (added === 0 && files.length > 0) {
+        return { success: false, message: 'Nothing to add, all files already staged or do not exist', xp: 0 };
+    }
     
     return { success: true, message: `Added ${added} file(s)`, xp: 10 };
 };
@@ -442,7 +470,6 @@ gitCommands.merge = function(args) {
     
     window.gameState.merges++;
     
-    // Notify game engine
     if (window.gameEngine) {
         window.gameEngine.checkObjectives();
     }
@@ -501,7 +528,6 @@ gitCommands.rebase = function(args) {
 gitCommands.cherrypick = function(args) {
     localStorage.setItem('gwa_cherrypick', 'true');
     
-    // Notify game engine
     if (window.gameEngine) {
         window.gameEngine.checkObjectives();
     }

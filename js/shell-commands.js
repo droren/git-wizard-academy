@@ -55,7 +55,16 @@ const shellCommands = {
     ls: function(args) {
         const long = args.includes('-l');
         const all = args.includes('-a') || args.includes('--all');
-        const items = window.fileSystemModule.listDirectory(args[args.length - 1] || '.');
+        const fs = window.fileSystemModule;
+        
+        // Determine path - . means current directory
+        let path = '.';
+        const lastArg = args[args.length - 1];
+        if (lastArg && !lastArg.startsWith('-')) {
+            path = lastArg;
+        }
+        
+        const items = fs.listDirectory(path);
         
         if (items.length === 0) {
             return { success: true, message: '(empty directory)' };
@@ -94,28 +103,26 @@ const shellCommands = {
         }
         
         if (path === '-') {
-            if (window.pathHistory && window.pathHistory.length > 1) {
-                window.pathHistory.pop();
-                fs.setCurrentPath(window.pathHistory[window.pathHistory.length - 1]);
+            if (pathHistory.length > 1) {
+                pathHistory.pop();
+                fs.setCurrentPath(pathHistory[pathHistory.length - 1]);
             }
             return { success: true, message: '' };
         }
         
+        // Use resolvePath to handle . and .. properly
         const newPath = fs.resolvePath(path);
-        const parts = newPath.split('/').filter(p => p);
-        let current = fileSystem['/'];
         
-        for (const part of parts) {
-            if (current.children[part] && current.children[part].type === 'directory') {
-                current = current.children[part];
-            } else if (current.children[part]) {
-                return { success: false, message: `cd: ${path}: Not a directory` };
-            } else {
-                return { success: false, message: `cd: ${path}: No such file or directory` };
-            }
+        // Check if path exists and is a directory
+        if (!fs.exists(newPath)) {
+            return { success: false, message: `cd: ${path}: No such file or directory` };
         }
         
-        fs.setCurrentPath(newPath || '/');
+        if (!fs.isDirectory(newPath)) {
+            return { success: false, message: `cd: ${path}: Not a directory` };
+        }
+        
+        fs.setCurrentPath(newPath);
         
         if (!window.pathHistory) window.pathHistory = [];
         window.pathHistory.push(fs.getCurrentPath());
@@ -136,11 +143,22 @@ const shellCommands = {
         const fs = window.fileSystemModule;
         
         args.forEach(path => {
-            const file = fs.readFile(path);
-            if (file) {
-                output += file.content + (args.length > 1 ? '\n\n' : '');
+            // Handle . as current directory - list files instead
+            if (path === '.' || path === '*') {
+                const files = fs.listFiles('.');
+                files.forEach(f => {
+                    const file = fs.readFile(f.name);
+                    if (file) {
+                        output += `==> ${f.name} <==\n${file.content}\n\n`;
+                    }
+                });
             } else {
-                output += `cat: ${path}: No such file or directory\n`;
+                const file = fs.readFile(path);
+                if (file) {
+                    output += file.content + (args.length > 1 ? '\n\n' : '');
+                } else {
+                    output += `cat: ${path}: No such file or directory\n`;
+                }
             }
         });
         
@@ -175,7 +193,11 @@ const shellCommands = {
         }
         
         const fs = window.fileSystemModule;
-        args.forEach(path => fs.createDirectory(path));
+        args.forEach(path => {
+            if (path !== '.' && path !== '..') {
+                fs.createDirectory(path);
+            }
+        });
         
         return { success: true, message: '' };
     },
@@ -192,6 +214,21 @@ const shellCommands = {
         }
         
         paths.forEach(path => {
+            // Handle . and .. specially
+            if (path === '.' || path === '..') {
+                if (!force) {
+                    return { success: false, message: `rm: cannot remove '${path}': Operation not permitted` };
+                }
+                return;
+            }
+            
+            // Handle * to mean all files
+            if (path === '*') {
+                const files = fs.listFiles('.');
+                files.forEach(f => fs.deletePath(f.name));
+                return;
+            }
+            
             if (!fs.deletePath(path) && !force) {
                 return { success: false, message: `rm: cannot remove '${path}': No such file or directory` };
             }
@@ -208,20 +245,15 @@ const shellCommands = {
         const fs = window.fileSystemModule;
         
         args.forEach(path => {
-            const fullPath = fs.resolvePath(path);
-            const parts = fullPath.split('/').filter(p => p);
-            let current = fileSystem['/'];
-            
-            for (let i = 0; i < parts.length - 1; i++) {
-                if (current.children[parts[i]]) {
-                    current = current.children[parts[i]];
-                }
+            // Don't allow removing . or ..
+            if (path === '.' || path === '..') {
+                return { success: false, message: `rmdir: '${path}': Operation not permitted` };
             }
             
-            const last = parts[parts.length - 1];
-            if (current.children[last] && current.children[last].type === 'directory') {
-                if (Object.keys(current.children[last].children).length === 0) {
-                    delete current.children[last];
+            const dir = fs.getDir(path);
+            if (dir) {
+                if (Object.keys(dir.children).length === 0) {
+                    fs.deletePath(path);
                 } else {
                     return { success: false, message: `rmdir: ${path}: Directory not empty` };
                 }
@@ -243,7 +275,15 @@ const shellCommands = {
         }
         
         pattern = pattern.replace(/^["']|["']$/g, '');
-        if (paths.length === 0) paths = ['.'];
+        
+        // If no paths given, search all files
+        if (paths.length === 0 || (paths.length === 1 && paths[0] === '*')) {
+            const files = fs.listFiles('.');
+            paths = files.map(f => f.name);
+        }
+        
+        // Handle . as current directory
+        paths = paths.map(p => p === '.' ? '*' : p);
         
         let output = '';
         paths.forEach(path => {
@@ -307,11 +347,28 @@ const shellCommands = {
     head: function(args) {
         const lines = parseInt(args.find(a => !a.startsWith('-')) || 10);
         const fileArg = args.find(a => !a.startsWith('-') && !a.startsWith('-n'));
-        const file = fileArg ? window.fileSystemModule.readFile(fileArg) : null;
+        const fs = window.fileSystemModule;
+        
+        if (!fileArg) {
+            return { success: false, message: 'head: missing file' };
+        }
+        
+        // Handle . as current directory
+        const actualFile = fileArg === '.' ? null : fileArg;
+        const file = actualFile ? fs.readFile(actualFile) : null;
         
         if (file) {
             const content = file.content.split('\n').slice(0, lines).join('\n');
             return { success: true, message: content };
+        } else {
+            const files = fs.listFiles('.');
+            if (files.length > 0) {
+                const firstFile = fs.readFile(files[0].name);
+                if (firstFile) {
+                    const content = firstFile.content.split('\n').slice(0, lines).join('\n');
+                    return { success: true, message: content };
+                }
+            }
         }
         return { success: false, message: 'head: missing file' };
     },
@@ -319,7 +376,15 @@ const shellCommands = {
     tail: function(args) {
         const lines = parseInt(args.find(a => !a.startsWith('-')) || 10);
         const fileArg = args.find(a => !a.startsWith('-') && !a.startsWith('-n'));
-        const file = fileArg ? window.fileSystemModule.readFile(fileArg) : null;
+        const fs = window.fileSystemModule;
+        
+        if (!fileArg) {
+            return { success: false, message: 'tail: missing file' };
+        }
+        
+        // Handle . as current directory
+        const actualFile = fileArg === '.' ? null : fileArg;
+        const file = actualFile ? fs.readFile(actualFile) : null;
         
         if (file) {
             const content = file.content.split('\n').slice(-lines).join('\n');
@@ -333,9 +398,13 @@ const shellCommands = {
             return { success: false, message: 'touch: missing file operand' };
         }
         
+        const fs = window.fileSystemModule;
         args.forEach(path => {
-            if (!window.fileSystemModule.exists(path)) {
-                window.fileSystemModule.createFile(path, '');
+            // Don't create a file named . or ..
+            if (path !== '.' && path !== '..') {
+                if (!fs.exists(path)) {
+                    fs.createFile(path, '');
+                }
             }
         });
         
@@ -346,8 +415,36 @@ const shellCommands = {
         const countLines = args.includes('-l');
         const countWords = args.includes('-w');
         const countChars = args.includes('-c');
-        const fileArg = args.find(a => !a.startsWith('-'));
-        const file = fileArg ? window.fileSystemModule.readFile(fileArg) : null;
+        const fs = window.fileSystemModule;
+        
+        let fileArg = args.find(a => !a.startsWith('-'));
+        
+        // Handle special cases
+        if (!fileArg) {
+            // Show count for all files
+            const files = fs.listFiles('.');
+            if (files.length === 0) {
+                return { success: true, message: '0 0 0' };
+            }
+            let totalLines = 0, totalWords = 0, totalChars = 0;
+            files.forEach(f => {
+                const file = fs.readFile(f.name);
+                if (file) {
+                    const content = file.content;
+                    totalLines += content.split('\n').length;
+                    totalWords += content.split(/\s+/).filter(w => w).length;
+                    totalChars += content.length;
+                }
+            });
+            if (countLines) return { success: true, message: totalLines.toString() };
+            if (countWords) return { success: true, message: totalWords.toString() };
+            if (countChars) return { success: true, message: totalChars.toString() };
+            return { success: true, message: `${totalLines} ${totalWords} ${totalChars}` };
+        }
+        
+        // Handle . as current directory
+        const actualFile = fileArg === '.' ? null : fileArg;
+        const file = actualFile ? fs.readFile(actualFile) : null;
         
         if (file) {
             const content = file.content;
@@ -358,10 +455,54 @@ const shellCommands = {
             if (countLines) return { success: true, message: lines.toString() };
             if (countWords) return { success: true, message: words.toString() };
             if (countChars) return { success: true, message: chars.toString() };
-            
             return { success: true, message: `${lines} ${words} ${chars}` };
         }
         return { success: false, message: 'wc: missing file' };
+    },
+    
+    cp: function(args) {
+        // Simple copy: cp source dest
+        if (args.length < 2) {
+            return { success: false, message: 'cp: missing operand' };
+        }
+        
+        const fs = window.fileSystemModule;
+        const source = args[0];
+        const dest = args[1];
+        
+        if (source === '.' || source === '..') {
+            return { success: false, message: `cp: '${source}': Operation not permitted` };
+        }
+        
+        const file = fs.readFile(source);
+        if (file) {
+            fs.createFile(dest, file.content);
+            return { success: true, message: '' };
+        }
+        return { success: false, message: `cp: ${source}: No such file` };
+    },
+    
+    mv: function(args) {
+        // Simple move: mv source dest
+        if (args.length < 2) {
+            return { success: false, message: 'mv: missing operand' };
+        }
+        
+        const fs = window.fileSystemModule;
+        const source = args[0];
+        const dest = args[1];
+        
+        if (source === '.' || source === '..') {
+            return { success: false, message: `mv: '${source}': Operation not permitted` };
+        }
+        
+        const file = fs.readFile(source);
+        if (file) {
+            fs.createFile(dest, file.content);
+            fs.deletePath(source);
+            return { success: true, message: '' };
+        }
+        return { success: false, message: `mv: ${source}: No such file` };
     }
 };
 
