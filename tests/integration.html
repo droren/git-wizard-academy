@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GWA Integration Harness</title>
+  <style>
+    body { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background:#0b1220; color:#dbe7ff; margin:0; }
+    .wrap { display:grid; grid-template-columns: 360px 1fr; gap: 12px; padding: 12px; height:100vh; box-sizing:border-box; }
+    .panel { background:#111b2f; border:1px solid #2a3a5f; border-radius:10px; padding:10px; overflow:auto; }
+    button { background:#1d345f; color:#fff; border:1px solid #3f64a3; border-radius:8px; padding:8px 10px; cursor:pointer; margin-right:6px; margin-bottom:6px; }
+    button:hover { background:#2a4f8d; }
+    #log { white-space:pre-wrap; font-size:12px; line-height:1.4; }
+    iframe { width:100%; height:100%; border:1px solid #2a3a5f; border-radius:10px; background:#0c0c0c; }
+    .ok { color:#6df2a1; }
+    .bad { color:#ff8b8b; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="panel">
+      <h3>Integration Harness</h3>
+      <div>
+        <button id="reloadBtn">Reload App</button>
+        <button id="resetBtn">Reset Game</button>
+      </div>
+      <div>
+        <button id="smokeBtn">Run Smoke (L1-L3)</button>
+        <button id="fullBtn">Run Full Campaign (L1-L10)</button>
+      </div>
+      <div id="log"></div>
+    </section>
+    <section class="panel">
+      <iframe id="appFrame" src="../index.html"></iframe>
+    </section>
+  </div>
+
+  <script>
+    const frame = document.getElementById('appFrame');
+    const logEl = document.getElementById('log');
+    let reqId = 1;
+    const pending = new Map();
+    let ready = false;
+
+    function log(msg, cls) {
+      const line = document.createElement('div');
+      line.textContent = msg;
+      if (cls) line.className = cls;
+      logEl.appendChild(line);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+    window.addEventListener('message', (event) => {
+      const data = event.data || {};
+      if (data.type === 'GWA_TEST_READY') {
+        ready = true;
+        log('App bridge ready.', 'ok');
+        return;
+      }
+      if (data.type === 'GWA_TEST_RESPONSE' && pending.has(data.id)) {
+        const p = pending.get(data.id);
+        pending.delete(data.id);
+        if (data.ok) p.resolve(data.result);
+        else p.reject(new Error(data.error || 'bridge command failed'));
+      }
+    });
+
+    async function waitForReady(timeoutMs = 15000) {
+      const start = Date.now();
+      while (Date.now() - start < timeoutMs) {
+        if (ready) return;
+        await sleep(100);
+      }
+      throw new Error('Timed out waiting for bridge readiness');
+    }
+
+    function bridge(command, args) {
+      return new Promise((resolve, reject) => {
+        const id = reqId++;
+        pending.set(id, { resolve, reject });
+        frame.contentWindow.postMessage({ type: 'GWA_TEST_COMMAND', id, command, args: args || {} }, '*');
+      });
+    }
+
+    async function exec(cmd) {
+      await bridge('exec', { command: cmd });
+      await sleep(40);
+    }
+
+    async function getState() {
+      const out = await bridge('getState');
+      return out.state;
+    }
+
+    function levelComplete(state) {
+      return Array.isArray(state.currentObjectives) && state.currentObjectives.every((o) => o === 'complete');
+    }
+
+    async function runLevelScenario(level) {
+      await bridge('loadLevel', { level });
+      await sleep(100);
+
+      if (level === 0) {
+        await exec('git config --global user.name "Hero"');
+        await exec('git config --global user.email "hero@academy.dev"');
+        await exec('git init');
+        await exec('echo "hello" > hello.txt');
+        await exec('git add hello.txt');
+        await exec('git commit -m "first"');
+      }
+
+      if (level === 1) {
+        await exec('echo "new" > draft.txt');
+        await exec('echo "change" > app.js');
+        await exec('git add draft.txt');
+        await exec('git status');
+        await exec('git commit -m "c1"');
+        await exec('git add app.js');
+        await exec('git commit -m "c2"');
+        await exec('git log --oneline');
+      }
+
+      if (level === 2) {
+        await exec('git switch -c feature');
+        await exec('echo "feat" > feature.txt');
+        await exec('git add feature.txt');
+        await exec('git commit -m "feature"');
+        await exec('git switch main');
+        await exec('echo "main" > app.js');
+        await exec('git add app.js');
+        await exec('git commit -m "main"');
+        await exec('git merge feature');
+      }
+
+      if (level === 3) {
+        await exec('git switch feature');
+        await exec('echo "their" > app.js');
+        await exec('git add app.js');
+        await exec('git commit -m "feature edit"');
+        await exec('git switch main');
+        await exec('echo "ours" > app.js');
+        await exec('git add app.js');
+        await exec('git commit -m "main edit"');
+        await exec('git merge feature');
+        await exec('cat app.js');
+        await exec('echo "resolved" > app.js');
+        await exec('git add app.js');
+        await exec('git commit -m "resolve conflict"');
+      }
+
+      if (level === 4) {
+        await exec('echo "wip" >> app.js');
+        await exec('git stash');
+        await exec('git stash list');
+        await exec('git stash pop');
+        await exec('git tag -a v1.0.0 -m "release"');
+        await exec('git log --oneline');
+      }
+
+      if (level === 5) {
+        await exec('git switch main');
+        await exec('echo "main2" >> app.js');
+        await exec('git add app.js');
+        await exec('git commit -m "main2"');
+        await exec('git switch feature');
+        await exec('echo "feat2" >> feature.js');
+        await exec('git add feature.js');
+        await exec('git commit -m "feat2"');
+        await exec('git merge main');
+        await exec('git rebase main');
+        await exec('git rebase -i HEAD~1');
+      }
+
+      if (level === 6) {
+        await exec('git reflog');
+        await exec('git reset --soft HEAD~1');
+      }
+
+      if (level === 7) {
+        await exec('git switch hotfix');
+        await exec('git switch main');
+        await exec('git cherry-pick hotfix');
+        await exec('git bisect start');
+        await exec('git bisect run test.sh');
+      }
+
+      if (level === 8) {
+        await exec('git submodule add https://example.com/lib.git libs/lib');
+        await exec('echo "#!/bin/sh" > .git/hooks/pre-commit');
+        await exec('git config --global alias.co checkout');
+      }
+
+      if (level === 9) {
+        let s = await getState();
+        if (!Array.isArray(s.completedLevels) || s.completedLevels.length < 9) {
+          await bridge('exec', { command: 'echo "noop"' });
+          // finalize through bridge state mutation is intentionally avoided; use existing progression in full runs.
+        }
+        await exec('git switch -c feature');
+        await exec('echo "feat" > feat.txt');
+        await exec('git add feat.txt');
+        await exec('git commit -m "feat"');
+        await exec('git switch main');
+        await exec('echo "main" > main.txt');
+        await exec('git add main.txt');
+        await exec('git commit -m "main"');
+        await exec('git switch feature');
+        await exec('git rebase main');
+        await exec('git switch main');
+        await exec('git merge feature');
+        await exec('git switch -c hotfix');
+        await exec('echo "fix" > fix.txt');
+        await exec('git add fix.txt');
+        await exec('git commit -m "fix"');
+        await exec('git switch main');
+        await exec('git cherry-pick hotfix');
+      }
+
+      await bridge('checkObjectives');
+      await sleep(80);
+
+      const state = await getState();
+      const ok = levelComplete(state);
+      log(`Level ${level + 1}: ${ok ? 'PASS' : 'FAIL'}`, ok ? 'ok' : 'bad');
+      if (!ok) {
+        throw new Error('Level ' + (level + 1) + ' objectives not complete: ' + JSON.stringify(state.currentObjectives));
+      }
+    }
+
+    async function runScenario(maxLevel) {
+      log('Starting scenario...');
+      await waitForReady();
+      await bridge('resetGame');
+      await sleep(120);
+
+      for (let lvl = 0; lvl <= maxLevel; lvl++) {
+        await runLevelScenario(lvl);
+      }
+
+      log('Scenario complete.', 'ok');
+    }
+
+    document.getElementById('reloadBtn').onclick = () => {
+      ready = false;
+      frame.src = '../index.html';
+      log('App reloaded.');
+    };
+
+    document.getElementById('resetBtn').onclick = async () => {
+      try {
+        await waitForReady();
+        await bridge('resetGame');
+        log('Game reset done.', 'ok');
+      } catch (e) {
+        log(e.message, 'bad');
+      }
+    };
+
+    document.getElementById('smokeBtn').onclick = async () => {
+      try { await runScenario(2); } catch (e) { log(e.message, 'bad'); }
+    };
+
+    document.getElementById('fullBtn').onclick = async () => {
+      try { await runScenario(9); } catch (e) { log(e.message, 'bad'); }
+    };
+  </script>
+</body>
+</html>

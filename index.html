@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Git Wizard Academy - Master the Command Line</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.5.0/css/xterm.min.css">
     <link rel="stylesheet" href="css/main.css">
 </head>
 <body>
@@ -61,7 +62,11 @@
         <!-- Lesson Panel -->
         <aside class="panel lesson-panel">
             <div class="panel-header">
-                📖 Current Lesson
+                <span>📖 Current Lesson</span>
+                <div class="panel-actions">
+                    <button class="panel-action-btn" onclick="window.gameEngine.resetLevel()">Reset Level</button>
+                    <button class="panel-action-btn danger" onclick="window.gameEngine.resetGame()">Reset Game</button>
+                </div>
             </div>
             <div class="panel-content" id="lessonContent">
             </div>
@@ -154,11 +159,61 @@
             <div class="boss-dialogue" id="bossDialogue">
                 "You dare challenge me? I'll turn your commit history into spaghetti!"
             </div>
-            <div style="margin-top: 20px; color: var(--text-secondary);">
+            <div class="boss-hint-wrap" style="margin-top: 20px; color: var(--text-secondary);">
                 <p>💡 <strong>Hint:</strong> <span id="bossHint">Use git rebase to defeat this boss!</span></p>
             </div>
         </div>
     </div>
+
+    <!-- Level Intro Demo -->
+    <div class="modal-overlay guide-overlay" id="levelGuideOverlay">
+        <div class="guide-modal">
+            <div class="guide-header">
+                <div class="guide-title" id="guideTitle">Mission Briefing</div>
+                <div class="guide-subtitle" id="guideSubtitle">Watch a command walkthrough, then start the level.</div>
+            </div>
+            <div class="guide-terminal" id="guideTerminal"></div>
+            <div class="guide-actions">
+                <button class="btn btn-secondary" id="guidePlayPauseBtn">Pause</button>
+                <button class="btn btn-secondary" id="guideReplayBtn">Replay</button>
+                <button class="btn btn-primary" id="guideCloseBtn">Start Level</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Conflict Resolver -->
+    <div class="modal-overlay resolver-overlay" id="conflictResolverOverlay">
+        <div class="resolver-modal">
+            <div class="resolver-header">
+                <div class="resolver-title">Merge Conflict Resolver</div>
+                <button class="nano-close" id="resolverCloseBtn">×</button>
+            </div>
+            <div class="resolver-file" id="resolverFile"></div>
+            <div class="resolver-columns">
+                <div class="resolver-col">
+                    <div class="resolver-col-title">Current (Ours)</div>
+                    <pre class="resolver-code" id="resolverOurs"></pre>
+                    <button class="btn btn-secondary resolver-pick" data-choice="ours">Accept Current</button>
+                </div>
+                <div class="resolver-col">
+                    <div class="resolver-col-title">Incoming (Theirs)</div>
+                    <pre class="resolver-code" id="resolverTheirs"></pre>
+                    <button class="btn btn-secondary resolver-pick" data-choice="theirs">Accept Incoming</button>
+                </div>
+                <div class="resolver-col">
+                    <div class="resolver-col-title">Combined</div>
+                    <pre class="resolver-code" id="resolverCombined"></pre>
+                    <button class="btn btn-secondary resolver-pick" data-choice="both">Accept Both</button>
+                </div>
+            </div>
+            <div class="guide-actions">
+                <button class="btn btn-primary" id="resolverStageBtn">Save + Stage</button>
+            </div>
+        </div>
+    </div>
+
+    <button class="panel-action-btn resolver-launch" id="openResolverBtn" style="display:none;">Resolve Conflict</button>
+    <div class="hint-toast" id="hintToast"></div>
 
     <!-- Achievement Popup -->
     <div class="achievement-popup" id="achievementPopup">
@@ -187,12 +242,19 @@
     </div>
 
     <!-- Load scripts in order -->
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.5.0/lib/xterm.min.js"></script>
+    <script src="js/storage-stores.js"></script>
+    <script src="js/repo-model.js"></script>
     <script src="js/file-system.js"></script>
     <script src="js/shell-commands.js"></script>
     <script src="js/git-commands.js"></script>
     <script src="js/achievements.js"></script>
     <script src="js/lessons.js"></script>
+    <script src="js/lesson-guides.js"></script>
+    <script src="js/story-arc.js"></script>
+    <script src="js/objective-rules.js"></script>
     <script src="js/game-engine.js"></script>
     <script src="js/ui.js"></script>
+    <script src="js/test-bridge.js"></script>
 </body>
 </html>

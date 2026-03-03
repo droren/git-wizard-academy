@@ -65,6 +65,10 @@ cat hello.txt    # Show file content</code></pre>
             currentBranch: 'main',
             commits: []
         },
+        initialWorkspaceFiles: {
+            'README.md': '# Wizard Notes\n\nWelcome to Git Wizard Academy.\n',
+            '.gitignore': 'node_modules/\n.DS_Store\n'
+        },
         boss: null
     },
     {
@@ -119,6 +123,10 @@ cat hello.txt    # Show file content</code></pre>
             branches: ['main'],
             currentBranch: 'main',
             commits: [{ message: "Initial commit", author: "You", files: ["README.md"] }]
+        },
+        initialWorkspaceFiles: {
+            'README.md': '# Wizard Notes\n\nThis project tracks your spellbook.\n',
+            'app.js': 'console.log(\"Wizard Academy app boot\");\n'
         },
         boss: null
     },
@@ -175,6 +183,11 @@ git switch main</code></pre>
                 { message: "Initial commit", author: "You", files: ["README.md"] },
                 { message: "Add main feature", author: "You", files: ["app.js"] }
             ]
+        },
+        initialWorkspaceFiles: {
+            'README.md': '# Wizard Notes\n\nBranching practice repository.\n',
+            'app.js': 'console.log(\"main branch app\");\n',
+            'feature.txt': 'feature backlog item\\n'
         },
         boss: null
     },
@@ -234,6 +247,10 @@ git commit -m "Resolve merge conflict"</code></pre>
                 { message: "Add feature on main", author: "You", files: ["app.js"] }
             ],
             staged: []
+        },
+        initialWorkspaceFiles: {
+            'README.md': '# Conflict Drill\n\nTwo branches are about to diverge.\n',
+            'app.js': 'console.log(\"main timeline\");\n'
         },
         conflictScenario: true,
         boss: {
@@ -300,6 +317,11 @@ git commit -m "Resolve merge conflict"</code></pre>
                 { message: "Add core features", author: "You", files: ["app.js", "index.html"] }
             ]
         },
+        initialWorkspaceFiles: {
+            'README.md': '# Archive Vault\n\nPrepare a release and pause work safely.\n',
+            'app.js': 'console.log(\"core feature\");\n',
+            'release-notes.md': 'v0.9.0 draft\\n'
+        },
         boss: null
     },
     {
@@ -362,6 +384,11 @@ git rebase main</code></pre>
                 { message: "WIP: feature", author: "You", files: ["feature.js"] },
                 { message: "More WIP", author: "You", files: ["feature.js"] }
             ]
+        },
+        initialWorkspaceFiles: {
+            'README.md': '# Shadow Walk\n\nHistory must be rewritten cleanly.\n',
+            'app.js': 'console.log(\"main stable\");\n',
+            'feature.js': 'console.log(\"feature wip 2\");\n'
         },
         boss: {
             name: "Lord Rebase",
@@ -427,6 +454,10 @@ git branch recovered &lt;commit-hash&gt;</code></pre>
                 { message: "Add feature", author: "You", files: ["app.js"] }
             ]
         },
+        initialWorkspaceFiles: {
+            'README.md': '# Recovery Chamber\n\nPractice safe rollback and recovery.\n',
+            'app.js': 'console.log(\"feature stable\");\n'
+        },
         boss: null
     },
     {
@@ -473,6 +504,11 @@ git bisect reset</code></pre>
                 { message: "Add feature A", author: "You", files: ["featureA.js"] },
                 { message: "Fix critical bug", author: "You", files: ["bugfix.js"], branch: "hotfix" }
             ]
+        },
+        initialWorkspaceFiles: {
+            'README.md': '# Precision Ops\n\nFind and transplant the right fix.\n',
+            'featureA.js': 'console.log(\"feature A\");\n',
+            'bugfix.js': 'console.log(\"critical fix\");\n'
         },
         boss: {
             name: "Cherry-Pick Master",
@@ -527,6 +563,11 @@ git config --global alias.st status</code></pre>
                 { message: "Add dependencies", author: "You", files: ["package.json"] }
             ]
         },
+        initialWorkspaceFiles: {
+            'README.md': '# Reality Shaping\n\nAutomate and modularize responsibly.\n',
+            '.gitmodules': '[submodule \"libs/engine\"]\\n\\tpath = libs/engine\\n\\turl = https://example.com/engine.git\\n',
+            'package.json': '{\"name\":\"wizard-academy\",\"version\":\"1.0.0\"}\\n'
+        },
         boss: null
     },
     {
@@ -579,6 +620,10 @@ git config --global alias.st status</code></pre>
             branches: ['main'],
             currentBranch: 'main',
             commits: [{ message: "Initial commit", author: "Team", files: ["README.md"] }]
+        },
+        initialWorkspaceFiles: {
+            'README.md': '# Final Exam\\n\\nStabilize all timelines and defeat entropy.\\n',
+            'app.js': 'console.log(\"final timeline\");\\n'
         },
         finalExam: true,
         boss: {

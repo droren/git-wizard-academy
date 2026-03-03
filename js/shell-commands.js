@@ -103,6 +103,7 @@ const shellCommands = {
         }
         
         if (path === '-') {
+            const pathHistory = fs._pathHistory;
             if (pathHistory.length > 1) {
                 pathHistory.pop();
                 fs.setCurrentPath(pathHistory[pathHistory.length - 1]);
@@ -124,8 +125,7 @@ const shellCommands = {
         
         fs.setCurrentPath(newPath);
         
-        if (!window.pathHistory) window.pathHistory = [];
-        window.pathHistory.push(fs.getCurrentPath());
+        fs._pathHistory.push(fs.getCurrentPath());
         
         return { success: true, message: '' };
     },
@@ -156,6 +156,10 @@ const shellCommands = {
                 const file = fs.readFile(path);
                 if (file) {
                     output += file.content + (args.length > 1 ? '\n\n' : '');
+                    if (file.content.includes('<<<<<<<') || file.content.includes('=======') || file.content.includes('>>>>>>>')) {
+                        window.gameState.flags = window.gameState.flags || {};
+                        window.gameState.flags.conflictMarkersIdentified = true;
+                    }
                 } else {
                     output += `cat: ${path}: No such file or directory\n`;
                 }
@@ -180,6 +184,10 @@ const shellCommands = {
             const newContent = append && existing ? existing.content + '\n' + text : text;
             
             fs.createFile(filename, newContent);
+            window.gameState.flags = window.gameState.flags || {};
+            if (filename.includes('.git/hooks')) {
+                window.gameState.flags.createdHook = true;
+            }
             return { success: true, message: '' };
         }
         
@@ -292,6 +300,10 @@ const shellCommands = {
                 const lines = file.content.split('\n');
                 lines.forEach((line, index) => {
                     if (line.toLowerCase().includes(pattern.toLowerCase())) {
+                        if (line.includes('<<<<<<<') || line.includes('=======') || line.includes('>>>>>>>') || pattern.includes('<<<') || pattern.includes('>>>') ) {
+                            window.gameState.flags = window.gameState.flags || {};
+                            window.gameState.flags.conflictMarkersIdentified = true;
+                        }
                         output += `${path}:${index + 1}:${line}\n`;
                     }
                 });
@@ -308,6 +320,10 @@ const shellCommands = {
         window.gameState.nanoFile = filename;
         const existing = fs.readFile(filename);
         const content = existing ? existing.content : '';
+        if (content.includes('<<<<<<<') || content.includes('=======') || content.includes('>>>>>>>')) {
+            window.gameState.flags = window.gameState.flags || {};
+            window.gameState.flags.conflictMarkersIdentified = true;
+        }
         
         const overlay = document.getElementById('nanoOverlay');
         if (overlay) {
@@ -321,6 +337,10 @@ const shellCommands = {
     },
     
     clear: function(args) {
+        if (window.ui && window.ui.clearTerminal) {
+            window.ui.clearTerminal();
+            return { success: true, message: '', isSystem: true };
+        }
         const history = document.getElementById('terminalHistory');
         if (history) history.innerHTML = '';
         return { success: true, message: '', isSystem: true };
