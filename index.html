@@ -1,0 +1,2590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Git Wizard Academy - Master the Command Line</title>
+    <style>
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #21262d;
+            --text-primary: #c9d1d9;
+            --text-secondary: #8b949e;
+            --accent-green: #3fb950;
+            --accent-purple: #a371f7;
+            --accent-blue: #58a6ff;
+            --accent-orange: #d29922;
+            --accent-red: #f85149;
+            --accent-pink: #db61a2;
+            --border-color: #30363d;
+            --terminal-bg: #0c0c0c;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* 🎵 Sound Toggle */
+        .sound-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 10px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .sound-toggle:hover {
+            background: var(--bg-secondary);
+        }
+
+        /* 🎬 Entrance Animation */
+        .entrance-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-primary);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.8s ease-out;
+        }
+
+        .entrance-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .entrance-logo {
+            font-size: 3rem;
+            font-weight: bold;
+            background: linear-gradient(135deg, var(--accent-green), var(--accent-purple), var(--accent-blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: pulse-glow 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { filter: drop-shadow(0 0 20px rgba(63, 185, 80, 0.3)); }
+            50% { filter: drop-shadow(0 0 40px rgba(163, 113, 247, 0.6)); }
+        }
+
+        /* Header */
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 20px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, var(--accent-green), var(--accent-purple));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+        }
+
+        .logo-text {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .logo-text span {
+            color: var(--accent-green);
+        }
+
+        /* Player Stats */
+        .player-stats {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--accent-blue);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+        }
+
+        .xp-bar-container {
+            width: 200px;
+            height: 8px;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+
+        .xp-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-green), var(--accent-purple));
+            border-radius: 4px;
+            transition: width 0.5s ease-out;
+        }
+
+        /* Main Layout */
+        .main-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 30px;
+            display: grid;
+            grid-template-columns: 300px 1fr 300px;
+            gap: 25px;
+        }
+
+        @media (max-width: 1200px) {
+            .main-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Panels */
+        .panel {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            background: var(--bg-tertiary);
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border-color);
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .panel-content {
+            padding: 20px;
+        }
+
+        /* 📚 Lesson Panel */
+        .lesson-panel {
+            max-height: calc(100vh - 200px);
+            overflow-y: auto;
+        }
+
+        .lesson-title {
+            font-size: 1.3rem;
+            color: var(--accent-purple);
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .lesson-content {
+            line-height: 1.7;
+            color: var(--text-primary);
+        }
+
+        .lesson-content h3 {
+            color: var(--accent-blue);
+            margin: 20px 0 10px;
+        }
+
+        .lesson-content p {
+            margin-bottom: 15px;
+        }
+
+        .lesson-content code {
+            background: var(--bg-tertiary);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            color: var(--accent-green);
+        }
+
+        .lesson-content pre {
+            background: var(--terminal-bg);
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 15px 0;
+            border: 1px solid var(--border-color);
+        }
+
+        .lesson-content pre code {
+            background: none;
+            padding: 0;
+            color: var(--text-primary);
+        }
+
+        .tip-box {
+            background: rgba(88, 166, 255, 0.1);
+            border-left: 4px solid var(--accent-blue);
+            padding: 12px 15px;
+            margin: 15px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .warning-box {
+            background: rgba(210, 153, 34, 0.1);
+            border-left: 4px solid var(--accent-orange);
+            padding: 12px 15px;
+            margin: 15px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        /* 🎯 Objective */
+        .objective-box {
+            background: linear-gradient(135deg, rgba(63, 185, 80, 0.1), rgba(163, 113, 247, 0.1));
+            border: 1px solid var(--accent-green);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .objective-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .objective-icon {
+            font-size: 1.5rem;
+        }
+
+        .objective-title {
+            font-weight: bold;
+            color: var(--accent-green);
+        }
+
+        .objective-list {
+            list-style: none;
+        }
+
+        .objective-list li {
+            padding: 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .objective-checkbox {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border-color);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+
+        .objective-checkbox.complete {
+            background: var(--accent-green);
+            border-color: var(--accent-green);
+        }
+
+        /* 💻 Terminal Panel */
+        .terminal-panel {
+            background: var(--terminal-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .terminal-header {
+            background: var(--bg-tertiary);
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .terminal-btn {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .terminal-btn.red { background: #ff5f56; }
+        .terminal-btn.yellow { background: #ffbd2e; }
+        .terminal-btn.green { background: #27ca40; }
+
+        .terminal-title {
+            flex: 1;
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        .terminal-body {
+            padding: 20px;
+            height: 400px;
+            overflow-y: auto;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 0.95rem;
+        }
+
+        .terminal-output {
+            color: var(--text-secondary);
+            margin-bottom: 5px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .terminal-output.success {
+            color: var(--accent-green);
+        }
+
+        .terminal-output.error {
+            color: var(--accent-red);
+        }
+
+        .terminal-output.info {
+            color: var(--accent-blue);
+        }
+
+        .terminal-output.command {
+            color: var(--text-primary);
+        }
+
+        .terminal-input-line {
+            display: flex;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        .terminal-prompt {
+            color: var(--accent-green);
+            margin-right: 10px;
+        }
+
+        .terminal-input {
+            flex: 1;
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: inherit;
+            outline: none;
+        }
+
+        /* 🎮 Game Panel */
+        .level-nav {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .level-btn {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 15px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: left;
+        }
+
+        .level-btn:hover {
+            background: var(--bg-primary);
+            border-color: var(--accent-blue);
+        }
+
+        .level-btn.active {
+            background: rgba(88, 166, 255, 0.1);
+            border-color: var(--accent-blue);
+        }
+
+        .level-btn.completed {
+            border-color: var(--accent-green);
+        }
+
+        .level-btn.locked {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .level-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+
+        .level-icon.novice { background: linear-gradient(135deg, #6b7280, #9ca3af); }
+        .level-icon.apprentice { background: linear-gradient(135deg, #3b82f6, #60a5fa); }
+        .level-icon.journeyfolk { background: linear-gradient(135deg, #8b5cf6, #a78bfa); }
+        .level-icon.battlefield { background: linear-gradient(135deg, #ef4444, #f87171); }
+        .level-icon.enchanted { background: linear-gradient(135deg, #10b981, #34d399); }
+        .level-icon.shadow { background: linear-gradient(135deg, #1f2937, #374151); }
+        .level-icon.arcanist { background: linear-gradient(135deg, #7c3aed, #8b5cf6); }
+        .level-icon.branch { background: linear-gradient(135deg, #f59e0b, #fbbf24); }
+        .level-icon.reality { background: linear-gradient(135deg, #ec4899, #f472b6); }
+        .level-icon.grand { background: linear-gradient(135deg, #fbbf24, #f59e0b, #ec4899); }
+
+        .level-info {
+            flex: 1;
+        }
+
+        .level-name {
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        .level-desc {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .level-status {
+            font-size: 1rem;
+        }
+
+        /* 🏆 Achievements */
+        .achievements-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .achievement {
+            width: 70px;
+            height: 70px;
+            background: var(--bg-tertiary);
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .achievement:hover {
+            transform: scale(1.1);
+            z-index: 10;
+        }
+
+        .achievement.unlocked {
+            border-color: var(--accent-orange);
+            box-shadow: 0 0 15px rgba(210, 153, 34, 0.3);
+        }
+
+        .achievement.locked {
+            opacity: 0.3;
+            filter: grayscale(1);
+        }
+
+        .achievement-icon {
+            font-size: 1.5rem;
+            margin-bottom: 2px;
+        }
+
+        .achievement-tooltip {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            border-radius: 6px;
+            white-space: nowrap;
+            font-size: 0.75rem;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+            z-index: 100;
+        }
+
+        .achievement:hover .achievement-tooltip {
+            opacity: 1;
+        }
+
+        /* 🎉 Level Complete Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            max-width: 500px;
+            animation: modal-pop 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+
+        @keyframes modal-pop {
+            0% { transform: scale(0.5); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .modal-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+        }
+
+        .modal-title {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, var(--accent-green), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .modal-subtitle {
+            color: var(--text-secondary);
+            margin-bottom: 30px;
+        }
+
+        .modal-xp {
+            display: inline-block;
+            background: var(--bg-tertiary);
+            padding: 10px 25px;
+            border-radius: 25px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--accent-orange);
+            margin-bottom: 20px;
+        }
+
+        .modal-rewards {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .reward-badge {
+            background: var(--bg-tertiary);
+            padding: 10px 15px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-green), var(--accent-purple));
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(63, 185, 80, 0.4);
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-primary);
+        }
+
+        /* 🐉 Boss Fight */
+        .boss-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1001;
+        }
+
+        .boss-overlay.show {
+            display: flex;
+        }
+
+        .boss-container {
+            text-align: center;
+            max-width: 800px;
+            padding: 40px;
+        }
+
+        .boss-health {
+            width: 100%;
+            height: 30px;
+            background: var(--bg-tertiary);
+            border-radius: 15px;
+            overflow: hidden;
+            margin: 20px 0;
+            border: 2px solid var(--accent-red);
+        }
+
+        .boss-health-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-red), #ff6b6b);
+            transition: width 0.5s;
+        }
+
+        .boss-avatar {
+            font-size: 8rem;
+            animation: boss-float 3s ease-in-out infinite;
+        }
+
+        @keyframes boss-float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+
+        .boss-name {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--accent-red);
+            margin-bottom: 10px;
+        }
+
+        .boss-dialogue {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--accent-red);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            font-style: italic;
+        }
+
+        .boss-health-text {
+            font-size: 1.2rem;
+            color: var(--accent-red);
+        }
+
+        /* 📊 Command Stats */
+        .command-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .stat-card {
+            background: var(--bg-tertiary);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-card-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--accent-purple);
+        }
+
+        .stat-card-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        /* 🔥 Streak */
+        .streak-display {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(236, 72, 153, 0.2));
+            padding: 8px 15px;
+            border-radius: 20px;
+            border: 1px solid var(--accent-orange);
+        }
+
+        .streak-icon {
+            font-size: 1.2rem;
+        }
+
+        .streak-count {
+            font-weight: bold;
+            color: var(--accent-orange);
+        }
+
+        /* 🎨 Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-tertiary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-secondary);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header-content {
+                justify-content: center;
+            }
+            
+            .player-stats {
+                justify-content: center;
+            }
+            
+            .main-container {
+                padding: 15px;
+            }
+            
+            .terminal-body {
+                height: 300px;
+            }
+        }
+
+        /* 🎊 XP Pop Animation */
+        .xp-pop {
+            position: fixed;
+            pointer-events: none;
+            font-weight: bold;
+            font-size: 1.2rem;
+            color: var(--accent-green);
+            animation: xp-float 1s ease-out forwards;
+            z-index: 1002;
+        }
+
+        @keyframes xp-float {
+            0% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-50px); }
+        }
+
+        /* 🌟 Achievement Popup */
+        .achievement-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            background: var(--bg-secondary);
+            border: 2px solid var(--accent-orange);
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+            z-index: 1003;
+            transition: transform 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+
+        .achievement-popup.show {
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        .achievement-popup-icon {
+            font-size: 4rem;
+            margin-bottom: 15px;
+        }
+
+        .achievement-popup-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--accent-orange);
+            margin-bottom: 5px;
+        }
+
+        .achievement-popup-desc {
+            color: var(--text-secondary);
+        }
+
+        /* Git Visualizer */
+        .git-visualizer {
+            background: var(--terminal-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.85rem;
+            overflow-x: auto;
+        }
+
+        .git-branch {
+            color: var(--accent-purple);
+        }
+
+        .git-commit {
+            color: var(--accent-green);
+        }
+
+        .git-head {
+            color: var(--accent-blue);
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <!-- 🎵 Sound Toggle -->
+    <button class="sound-toggle" id="soundToggle" title="Toggle Sound Effects">
+        🔊
+    </button>
+
+    <!-- 🎬 Entrance Overlay -->
+    <div class="entrance-overlay" id="entranceOverlay">
+        <div class="entrance-logo">⚡ GIT WIZARD ACADEMY ⚡</div>
+    </div>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <div class="logo-icon">🌳</div>
+                <div class="logo-text">Git <span>Wizard</span> Academy</div>
+            </div>
+            
+            <div class="player-stats">
+                <div class="stat">
+                    <div class="stat-value" id="currentLevel">1</div>
+                    <div class="stat-label">Level</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="currentTitle">Novice Initiate</div>
+                    <div class="stat-label">Title</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value"><span id="currentXP">0</span> XP</div>
+                    <div class="stat-label">Total XP</div>
+                    <div class="xp-bar-container">
+                        <div class="xp-bar" id="xpBar" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="stat">
+                    <div class="streak-display">
+                        <span class="streak-icon">🔥</span>
+                        <span class="streak-count" id="streakCount">0</span>
+                    </div>
+                    <div class="stat-label">Day Streak</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="commandsUsed">0</div>
+                    <div class="stat-label">Commands</div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="main-container">
+        <!-- 📚 Lesson Panel -->
+        <aside class="panel lesson-panel">
+            <div class="panel-header">
+                📖 Current Lesson
+            </div>
+            <div class="panel-content" id="lessonContent">
+                <!-- Content injected by JS -->
+            </div>
+        </aside>
+
+        <!-- 💻 Terminal Panel -->
+        <section class="panel terminal-panel">
+            <div class="terminal-header">
+                <div class="terminal-btn red"></div>
+                <div class="terminal-btn yellow"></div>
+                <div class="terminal-btn green"></div>
+                <div class="terminal-title">git-terminal — bash</div>
+            </div>
+            <div class="terminal-body" id="terminalOutput">
+                <div class="terminal-output info">Welcome to Git Wizard Academy!</div>
+                <div class="terminal-output info">Type <code>help</code> to see available commands.</div>
+                <div class="terminal-output">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+                <div id="terminalHistory"></div>
+                <div class="terminal-input-line">
+                    <span class="terminal-prompt">$</span>
+                    <input type="text" class="terminal-input" id="terminalInput" autofocus placeholder="Enter git command...">
+                </div>
+            </div>
+        </section>
+
+        <!-- 🎮 Game Panel -->
+        <aside class="panel">
+            <div class="panel-header">
+                🗺️ Level Map
+            </div>
+            <div class="panel-content">
+                <div class="level-nav" id="levelNav">
+                    <!-- Level buttons injected by JS -->
+                </div>
+                
+                <div class="command-stats">
+                    <div class="stat-card">
+                        <div class="stat-card-value" id="commitsCount">0</div>
+                        <div class="stat-card-label">Commits</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-value" id="branchesCount">0</div>
+                        <div class="stat-card-label">Branches</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-value" id="mergesCount">0</div>
+                        <div class="stat-card-label">Merges</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-value" id="conflictsCount">0</div>
+                        <div class="stat-card-label">Conflicts</div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 20px;">
+                    <div class="panel-header" style="margin: -20px -20px 15px; padding: 15px;">
+                        🏆 Achievements
+                    </div>
+                    <div class="achievements-grid" id="achievementsGrid">
+                        <!-- Achievements injected by JS -->
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- 🎉 Level Complete Modal -->
+    <div class="modal-overlay" id="levelCompleteModal">
+        <div class="modal">
+            <div class="modal-icon">🎊</div>
+            <div class="modal-title" id="modalTitle">Level Complete!</div>
+            <div class="modal-subtitle" id="modalSubtitle">You've mastered this chapter!</div>
+            <div class="modal-xp" id="modalXP">+100 XP</div>
+            <div class="modal-rewards" id="modalRewards">
+                <!-- Rewards injected by JS -->
+            </div>
+            <div class="modal-buttons">
+                <button class="btn btn-secondary" onclick="closeModal()">Review Lesson</button>
+                <button class="btn btn-primary" onclick="nextLevel()">Next Level →</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🐉 Boss Fight Modal -->
+    <div class="boss-overlay" id="bossOverlay">
+        <div class="boss-container">
+            <div class="boss-avatar" id="bossAvatar">🐉</div>
+            <div class="boss-name" id="bossName">Lord Rebase</div>
+            <div class="boss-health">
+                <div class="boss-health-bar" id="bossHealthBar" style="width: 100%"></div>
+            </div>
+            <div class="boss-health-text">BOSS HP: <span id="bossHP">100</span>%</div>
+            <div class="boss-dialogue" id="bossDialogue">
+                "You dare challenge me? I'll turn your commit history into spaghetti!"
+            </div>
+            <div style="margin-top: 20px; color: var(--text-secondary);">
+                <p>💡 <strong>Hint:</strong> <span id="bossHint">Use git rebase to defeat this boss!</span></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🌟 Achievement Popup -->
+    <div class="achievement-popup" id="achievementPopup">
+        <div class="achievement-popup-icon" id="achievementPopupIcon">🏆</div>
+        <div class="achievement-popup-title" id="achievementPopupTitle">Achievement Unlocked!</div>
+        <div class="achievement-popup-desc" id="achievementPopupDesc">You did something amazing!</div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 🎮 GAME STATE
+        // ==========================================
+        const gameState = {
+            currentLevel: 0,
+            totalXP: 0,
+            xpForCurrentLevel: 0,
+            xpRequiredForLevel: 300,
+            streak: 0,
+            commandsUsed: 0,
+            commits: 0,
+            branches: 0,
+            merges: 0,
+            conflicts: 0,
+            achievements: [],
+            completedLevels: [],
+            currentObjectives: [],
+            gitState: {
+                branches: ['main'],
+                currentBranch: 'main',
+                commits: [],
+                staged: [],
+                unstaged: []
+            },
+            history: [],
+            commandHistory: []
+        };
+
+        // ==========================================
+        // 📚 LESSON CONTENT
+        // ==========================================
+        const lessons = [
+            {
+                id: 0,
+                title: "Level 1: Novice Initiate",
+                icon: "🌱",
+                iconClass: "novice",
+                xpReward: 100,
+                titleName: "Novice Initiate",
+                description: "Your journey begins here",
+                objectives: [
+                    "Configure your git identity",
+                    "Initialize a new repository",
+                    "Create your first file and stage it",
+                    "Make your first commit"
+                ],
+                content: `
+                    <h2>🌱 Welcome, Young Apprentice!</h2>
+                    <p>Git is a powerful <strong>Version Control System</strong> that tracks changes in your code. Think of it as a time machine for your files!</p>
+                    
+                    <h3>What You'll Learn</h3>
+                    <ul>
+                        <li><code>git config</code> - Set up your identity</li>
+                        <li><code>git init</code> - Start a new repository</li>
+                        <li><code>git add</code> - Stage files for commit</li>
+                        <li><code>git commit</code> - Save your changes permanently</li>
+                    </ul>
+
+                    <div class="tip-box">
+                        💡 <strong>Pro Tip:</strong> Git takes "snapshots" of your project, not just differences. This makes it incredibly powerful!
+                    </div>
+
+                    <h3>Setting Up Your Identity</h3>
+                    <p>Before you start, Git needs to know who you are:</p>
+                    <pre><code>git config --global user.name "Your Name"
+git config --global user.email "your@email.com"</code></pre>
+
+                    <h3>Creating Your First Repo</h3>
+                    <p>A repository (or "repo") is where Git stores all the tracking information:</p>
+                    <pre><code>git init</code></pre>
+
+                    <div class="objective-box">
+                        <div class="objective-header">
+                            <span class="objective-icon">🎯</span>
+                            <span class="objective-title">Your Objectives</span>
+                        </div>
+                        <ul class="objective-list" id="objectiveList">
+                            <!-- Populated by JS -->
+                        </ul>
+                    </div>
+                `,
+                initialGitState: {
+                    branches: ['main'],
+                    currentBranch: 'main',
+                    commits: []
+                },
+                boss: null
+            },
+            {
+                id: 1,
+                title: "Level 2: Apprentice Scribe",
+                icon: "📜",
+                iconClass: "apprentice",
+                xpReward: 150,
+                titleName: "Apprentice Scribe",
+                description: "Master the art of committing",
+                objectives: [
+                    "View repository status",
+                    "Understand the staging area",
+                    "Create multiple commits",
+                    "View commit history"
+                ],
+                content: `
+                    <h2>📜 The Art of Committing</h2>
+                    <p>Congratulations, Initiate! You've made your first commit. Now let's deepen your understanding.</p>
+
+                    <h3>The Three States</h3>
+                    <p>Git has three main states for your files:</p>
+                    <ul>
+                        <li><strong>Modified</strong> - You've changed the file, but haven't staged it</li>
+                        <li><strong>Staged</strong> - You've marked the file for inclusion in your next commit</li>
+                        <li><strong>Committed</strong> - The file is safely stored in your repository</li>
+                    </ul>
+
+                    <h3>Checking Status</h3>
+                    <pre><code>git status</code></pre>
+                    <p>This shows you which files are modified, staged, or untracked.</p>
+
+                    <h3>Viewing History</h3>
+                    <pre><code>git log</code></pre>
+                    <p>See your commit history with all the details!</p>
+                    <pre><code>git log --oneline</code></pre>
+                    <p>A compact view showing just commit messages and SHAs.</p>
+
+                    <div class="warning-box">
+                        ⚠️ <strong>Important:</strong> Write meaningful commit messages! Future you will thank present you.
+                    </div>
+
+                    <div class="objective-box">
+                        <div class="objective-header">
+                            <span class="objective-icon">🎯</span>
+                            <span class="objective-title">Your Objectives</span>
+                        </div>
+                        <ul class="objective-list" id="objectiveList">
+                        </ul>
+                    </div>
+                `,
+                initialGitState: {
+                    branches: ['main'],
+                    currentBranch: 'main',
+                    commits: [
+                        { message: "Initial commit", author: "You", files: ["README.md"] }
+                    ]
+                },
+                boss: null
+            },
+            {
+                id: 2,
+                title: "Level 3: Journeyfolk Mage",
+                icon: "🔀",
+                iconClass: "journeyfolk",
+                xpReward: 200,
+                titleName: "Journeyfolk Mage",
+                description: "Branch out and explore",
+                objectives: [
+                    "Create a new branch",
+                    "Switch between branches",
+                    "Make commits on different branches",
+                    "Merge branches together"
+                ],
+                content: `
+                    <h2>🔀 The Power of Branching</h2>
+                    <p>Branches are Git's killer feature. They let you work on different features independently!</p>
+
+                    <h3>What is a Branch?</h3>
+                    <p>Think of a branch as a parallel timeline. You can make changes without affecting the main history until you're ready.</p>
+
+                    <h3>Creating Branches</h3>
+                    <pre><code>git branch feature-login</code></pre>
+                    <p>Creates a new branch called "feature-login"</p>
+
+                    <pre><code>git checkout -b feature-login</code></pre>
+                    <p>Creates AND switches to the new branch in one command!</p>
+
+                    <pre><code>git switch -c feature-login</code></pre>
+                    <p>Same as above, newer syntax (Git 2.23+)</p>
+
+                    <h3>Switching Branches</h3>
+                    <pre><code>git checkout main</code></pre>
+                    <pre><code>git switch main</code></pre>
+
+                    <h3>Merging Branches</h3>
+                    <pre><code>git merge feature-login</code></pre>
+                    <p>Combines the changes from feature-login into your current branch.</p>
+
+                    <div class="tip-box">
+                        💡 <strong>Visual Aid:</strong> Use <code>git log --graph --oneline --all</code> to see your branch structure!
+                    </div>
+
+                    <div class="objective-box">
+                        <div class="objective-header">
+                            <span class="objective-icon">🎯</span>
+                            <span class="objective-title">Your Objectives</span>
+                        </div>
+                        <ul class="objective-list" id="objectiveList">
+                        </ul>
+                    </div>
+                `,
+                initialGitState: {
+                    branches: ['main'],
+                    currentBranch: 'main',
+                    commits: [
+                        { message: "Initial commit", author: "You", files: ["README.md"] },
+                        { message: "Add main feature", author: "You", files: ["app.js"] }
+                    ]
+                },
+                boss: null
+            },
+            {
+                id: 3,
+                title: "Level 4: Battlefield Captain",
+                icon: "⚔️",
+                iconClass: "battlefield",
+                xpReward: 250,
+                titleName: "Battlefield Captain",
+                description: "Conquer merge conflicts",
+                objectives: [
+                    "Create a merge conflict",
+                    "Identify conflict markers",
+                    "Resolve a merge conflict",
+                    "Complete a merge after resolution"
+                ],
+                content: `
+                    <h2>⚔️ Enter the Battlefield</h2>
+                    <p>Conflicts happen when two people edit the same part of a file. Don't panic - they're normal and fixable!</p>
+
+                    <h3>How Conflicts Arise</h3>
+                    <pre><code>1. You create a branch and edit a file
+2. Someone else edits the SAME file on another branch
+3. You try to merge</code></pre>
+                    <p><strong>💥 BOOM!</strong> Conflict!</p>
+
+                    <h3>Identifying Conflicts</h3>
+                    <p>Git will tell you which files have conflicts:</p>
+                    <pre><code>git status</code></pre>
+
+                    <p>Conflict markers look like this:</p>
+                    <pre><code>&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD
+Your changes here
+=======
+Their changes here
+&gt;&gt;&gt;&gt;&gt;&gt;&gt; branch-name</code></pre>
+
+                    <h3>Resolving Conflicts</h3>
+                    <ol>
+                        <li>Open the file and decide which changes to keep (or both!)</li>
+                        <li>Remove the conflict markers</li>
+                        <li>Stage the resolved file</li>
+                        <li>Commit the merge</li>
+                    </ol>
+
+                    <pre><code>git add filename.txt
+git commit -m "Resolve merge conflict"</code></pre>
+
+                    <div class="warning-box">
+                        ⚠️ <strong>Strategy:</strong> Communicate with your team! Understanding WHY changes were made helps resolve conflicts correctly.
+                    </div>
+
+                    <div class="objective-box">
+                        <div class="objective-header">
+                            <span class="objective-icon">🎯</span>
+                            <span class="objective-title">Your Objectives</span>
+                        </div>
+                        <ul class="objective-list" id="objectiveList">
+                        </ul>
+                    </div>
+                `,
+                initialGitState: {
+                    branches: ['main', 'feature'],
+                    currentBranch: 'main',
+                    commits: [
+                        { message: "Initial commit", author: "You", files: ["README.md"] },
+                        { message: "Add feature on main", author: "You", files: ["app.js"] }
+                    ],
+                    staged: [],
+                    unstaged: []
+                },
+                conflictScenario: true,
+                boss: {
+                    name: "The Merge Monster",
+                    avatar: "👹",
+                    hp: 100,
+                    dialogue: "You cannot defeat me! My conflicts are endless!",
+                    hint: "Find the conflict markers, choose the right changes, then add and commit to banish the monster!"
+                }
+            },
+            {
+                id: 4,
+                title: "Level 5: Enchanted Archivist",
+                icon: "🏛️",
+                iconClass: "enchanted",
+                xpReward: 300,
+                titleName: "Enchanted Archivist",
+                description: "Master stashing and tagging",
+                objectives: [
+                    "Save work with git stash",
+                    "List and apply stashed changes",
+                    "Create annotated tags",
+                    "Navigate git log with style"
+                ],
+                content: `
+                    <h2>🏛️ The Art of Stashing</h2>
+                    <p>Need to switch branches but don't want to commit unfinished work? Stash it!</p>
+
+                    <h3>Stashing Your Work</h3>
+                    <pre><code>git stash</code></pre>
+                    <p>Temporarily shelves your changes, leaving a clean working directory.</p>
+
+                    <pre><code>git stash save "WIP: login feature"</code></pre>
+                    <p>Stash with a descriptive message.</p>
+
+                    <h3>Managing Stashes</h3>
+                    <pre><code>git stash list</code></pre>
+                    <p>See all your stashed changes.</p>
+
+                    <pre><code>git stash apply stash@{0}</code></pre>
+                    <p>Apply a specific stash (keeps it in the list).</p>
+
+                    <pre><code>git stash pop</code></pre>
+                    <p>Apply the latest stash and remove it from the list.</p>
+
+                    <pre><code>git stash drop</code></pre>
+                    <p>Delete a stash.</p>
+
+                    <h3>Tags - Mark Important Commits</h3>
+                    <pre><code>git tag v1.0.0</code></pre>
+                    <p>Create a lightweight tag.</p>
+
+                    <pre><code>git tag -a v1.0.0 -m "Version 1.0.0"</code></pre>
+                    <p>Create an annotated tag with a message.</p>
+
+                    <pre><code>git tag</code></pre>
+                    <p>List all tags.</p>
+
+                    <pre><code>git log --all --oneline --graph --decorate</code></pre>
+                    <p>See everything with pretty formatting!</p>
+
+                    <div class="objective-box">
+                        <div class="objective-header">
+                            <span class="objective-icon">🎯</span>
+                            <span class="objective-title">Your Objectives</span>
+                        </div>
+                        <ul class="objective-list" id="objectiveList">
+                        </ul>
+                    </div>
+                `,
+                initialGitState: {
+                    branches: ['main'],
+                    currentBranch: 'main',
+                    commits: [
+                        { message: "Initial commit", author: "You", files: ["README.md"] },
+                        { message: "Add core features", author: "You", files: ["app.js", "index.html"] },
+                        { message: "Bug fixes", author: "You", files: ["app.js"] }
+                    ]
+                },
+                boss: null
+            },
+            {
+                id: 5,
+                title: "Level 6: Shadow Walker",
+                icon: "🌑",
+                iconClass: "shadow",
+                xpReward: 350,
+                titleName: "Shadow Walker",
+                description: "Master the dark art of rebase",
+                objectives: [
+                    "Understand rebase vs merge",
+                    "Perform a basic rebase",
+                    "Use interactive rebase",
+                    "Edit, reorder, and squash commits"
+                ],
+                content: `
+                    <h2>🌑 The Shadow Path: Rebase</h2>
+                    <p>Rebase moves your commits to a new base, creating a cleaner, linear history.</p>
+
+                    <h3>Rebase vs Merge</h3>
+                    <p><strong>Merge:</strong> Combines two histories, creates a merge commit</p>
+                    <p><strong>Rebase:</strong> Moves your commits to appear after the target branch</p>
+
+                    <div class="tip-box">
+                        💡 <strong>Golden Rule:</strong> Never rebase commits that have been pushed and shared!
+                    </div>
+
+                    <h3>Basic Rebase</h3>
+                    <pre><code>git checkout feature
+git rebase main</code></pre>
+                    <p>Moves feature branch to start from main's latest commit.</p>
+
+                    <h3>Interactive Rebase</h3>
+                    <pre><code>git rebase -i HEAD~3</code></pre>
+                    <p>Edit the last 3 commits!</p>
+
+                    <h3>Interactive Commands</h3>
+                    <ul>
+                        <li><code>pick</code> - Keep the commit as-is</li>
+                        <li><code>reword</code> - Edit the commit message</li>
+                        <li><code>squash</code> - Combine with previous commit</li>
+                        <li><code>fixup</code> - Like squash, discard message</li>
+                        <li><code>drop</code> - Remove the commit</li>
+                        <li><code>edit</code> - Stop and let you amend</li>
+                    </ul>
+
+                    <div class="warning-box">
+                        ⚠️ <strong>Warning:</strong> Interactive rebase rewrites history. Be careful on shared branches!
+                    </div>
+
+                    <h3>Aborting a Rebase</h3>
+                    <pre><code>git rebase --abort</code></pre>
+                    <p>Back to safety if things go wrong!</p>
+
+                    <div class="objective-box">
+                        <div class="objective-header">
+                            <span class="objective-icon">🎯</span>
+                            <span class="objective-title">Your Objectives</span>
+                        </div>
+                        <ul class="objective-list" id="objectiveList">
+                        </ul>
+                    </div>
+                `,
+                initialGitState: {
+                    branches: ['main', 'feature'],
+                    currentBranch: 'feature',
+                    commits: [
+                        { message: "Initial commit", author: "You", files: ["README.md"] },
+                        { message: "Add main feature", author: "You", files: ["app.js"] },
+                        { message: "WIP: feature", author: "You", files: ["feature.js"] },
+                        { message: "More WIP", author: "You", files: ["feature.js"] },
+                        { message: "Almost done", author: "You", files: ["feature.js"] }
+                    ]
+                },
+                boss: {
+                    name: "Lord Rebase",
+                    avatar: "🧙",
+                    hp: 100,
+                    dialogue: "Your commit history is messy! I'll rewrite it for you... OR ELSE!",
+                    hint: "Use interactive rebase to squash those 'WIP' commits into meaningful ones!"
+                }
+            },
+            {
+                id: 6,
+                title: "Level 7: Grand Arcanist",
+                icon: "🔮",
+                iconClass: "arcanist",
+                xpReward: 400,
+                titleName: "Grand Arcanist",
+                description: "Master reflog and recovery",
+                objectives: [
+                    "Understand git reflog",
+                    "Recover lost commits",
+                    "Find dangling objects",
+                    "Use git reset safely"
+                ],
+                content: `
+                    <h2>🔮 The Reflog: Your Safety Net</h2>
+                    <p>Lost work is rarely truly lost in Git. The reflog is your time machine!</p>
+
+                    <h3>What is Reflog?</h3>
+                    <p>The reflog records when the tip of branches are updated. Even "lost" commits live here for 90 days!</p>
+
+                    <pre><code>git reflog</code></pre>
+                    <p>See your entire history of HEAD movements.</p>
+
+                    <pre><code>git reflog --all</code></pre>
+                    <p>View reflog for all refs.</p>
+
+                    <h3>Recovering Lost Commits</h3>
+                    <pre><code>git reflog</code></pre>
+                    <p>Find the commit hash of your lost work.</p>
+                    
+                    <pre><code>git checkout &lt;commit-hash&gt;</code></pre>
+                    <p>Visit the lost commit.</p>
+
+                    <pre><code>git branch recovered &lt;commit-hash&gt;</code></pre>
+                    <p>Save it to a new branch!</p>
+
+                    <h3>Git Reset: Moving HEAD</h3>
+                    <pre><code>git reset --soft HEAD~1</code></pre>
+                    <p>Move HEAD back 1 commit, keep changes staged.</p>
+
+                    <pre><code>git reset HEAD~1</code></pre>
+                    <p>Move HEAD back, unstage changes (default --mixed).</p>
+
+                    <pre><code>git reset --hard HEAD~1</code></pre>
+                    <p>Move HEAD back and DESTROY all changes (DANGEROUS!)</p>
+
+                    <div class="warning-box">
+                        ⚠️ <strong>NEVER use --hard on shared commits!</strong> But it's safe for your local work.
+                    </div>
+
+                    <div class="tip-box">
+                        💡 <strong>Recovery Order:</strong> 1) Check reflog, 2) Look at dangling commits with git fsck, 3) Create branch to recover.
+                    </div>
+
+                    <div class="objective-box">
+                        <div class="objective-header">
+                            <span class="objective-icon">🎯</span>
+                            <span class="objective-title">Your Objectives</span>
+                        </div>
+                        <ul class="objective-list" id="objectiveList">
+                        </ul>
+                    </div>
+                `,
+                initialGitState: {
+                    branches: ['main'],
+                    currentBranch: 'main',
+                    commits: [
+                        { message: "Initial commit", author: "You", files: ["README.md"] },
+                        { message: "Add feature", author: "You", files: ["app.js"] },
+                        { message: "Add more", author: "You", files: ["utils.js"] },
+                        { message: "Oops, deleted work here", author: "You", files: [], orphaned: true }
+                    ]
+                },
+                boss: null
+            },
+            {
+                id: 7,
+                title: "Level 8: Branch Tamer",
+                icon: "🌿",
+                iconClass: "branch",
+                xpReward: 450,
+                titleName: "Branch Tamer",
+                description: "Cherry-pick and bisect like a pro",
+                objectives: [
+                    "Use git cherry-pick to apply specific commits",
+                    "Use git bisect to find bugs",
+                    "Understand when to use each tool",
+                    "Combine cherry-pick with branches"
+                ],
+                content: `
+                    <h2>🌿 Precision Tools: Cherry-Pick & Bisect</h2>
+                    <p>Sometimes you need surgical precision. These commands give you exactly that!</p>
+
+                    <h3>Cherry-Pick: Copy Individual Commits</h3>
+                    <pre><code>git cherry-pick &lt;commit-hash&gt;</code></pre>
+                    <p>Copy a single commit to your current branch.</p>
+
+                    <pre><code>git cherry-pick branch-name</code></pre>
+                    <p>Copy the tip commit of another branch.</p>
+
+                    <pre><code>git cherry-pick A..B</code></pre>
+                    <p>Copy commits A through B (exclusive of A).</p>
+
+                    <div class="tip-box">
+                        💡 <strong>Use Case:</strong> You have a hotfix on main that you also need on your feature branch!
+                    </div>
+
+                    <h3>Git Bisect: Find the Bug</h3>
+                    <pre><code>git bisect start</code></pre>
+                    <p>Start the bisect session.</p>
+
+                    <pre><code>git bisect good &lt;commit&gt;</code></pre>
+                    <p>Mark a known good commit.</p>
+
+                    <pre><code>git bisect bad &lt;commit&gt;</code></pre>
+                    <p>Mark a known bad commit.</p>
+
+                    <pre><code>git bisect run test-script.sh</code></pre>
+                    <p>Automated bisecting with a test script!</p>
+
+                    <pre><code>git bisect reset</code></pre>
+                    <p>Exit bisect mode.</p>
+
+                    <h3>Combined Workflow</h3>
+                    <p>Use bisect to find the bad commit, then cherry-pick the fix commit!</p>
+
+                    <div class="objective-box">
+                        <div class="objective-header">
+                            <span class="objective-icon">🎯</span>
+                            <span class="objective-title">Your Objectives</span>
+                        </div>
+                        <ul class="objective-list" id="objectiveList">
+                        </ul>
+                    </div>
+                `,
+                initialGitState: {
+                    branches: ['main', 'hotfix'],
+                    currentBranch: 'main',
+                    commits: [
+                        { message: "Initial commit", author: "You", files: ["README.md"] },
+                        { message: "Add feature A", author: "You", files: ["featureA.js"] },
+                        { message: "Add feature B", author: "You", files: ["featureB.js"] },
+                        { message: "Fix critical bug", author: "You", files: ["bugfix.js"], branch: "hotfix" }
+                    ]
+                },
+                boss: {
+                    name: "Cherry-Pick Master",
+                    avatar: "🎯",
+                    hp: 100,
+                    dialogue: "Pick my commits correctly, or your history will be a mess!",
+                    hint: "Find the bugfix commit on the hotfix branch and cherry-pick it to main!"
+                }
+            },
+            {
+                id: 8,
+                title: "Level 9: Reality Shaper",
+                icon: "🌀",
+                iconClass: "reality",
+                xpReward: 500,
+                titleName: "Reality Shaper",
+                description: "Submodules, hooks, and advanced workflows",
+                objectives: [
+                    "Add and manage git submodules",
+                    "Create custom git hooks",
+                    "Understand git workflow best practices",
+                    "Configure git aliases"
+                ],
+                content: `
+                    <h3>🌀 Submodules: Repositories Within Repositories</h3>
+                    <p>When you need to include another project...</p>
+
+                    <pre><code>git submodule add &lt;repo-url&gt; path/to/submodule</code></pre>
+                    <p>Add a submodule.</p>
+
+                    <pre><code>git submodule update --init --recursive</code></pre>
+                    <p>Clone and update submodules.</p>
+
+                    <pre><code>git submodule deinit path/to/submodule</code></pre>
+                    <p>Remove a submodule.</p>
+
+                    <h3>Git Hooks: Automate Your Workflow</h3>
+                    <p>Hooks are scripts that run at specific times.</p>
+
+                    <pre><code>.git/hooks/pre-commit</code></pre>
+                    <p>Runs before a commit is created.</p>
+
+                    <pre><code>.git/hooks/pre-push</code></pre>
+                    <p>Runs before pushing to remote.</p>
+
+                    <pre><code>.git/hooks/commit-msg</code></pre>
+                    <p>Runs after the commit message is created.</p>
+
+                    <h3>Sample Pre-Commit Hook</h3>
+                    <pre><code>#!/bin/bash
+npm test
+if [ $? -ne 0 ]; then
+    echo "Tests failed! Commit denied."
+    exit 1
+fi</code></pre>
+
+                    <h3>Git Aliases: Speed Up Your Commands</h3>
+                    <pre><code>git config --global alias.co checkout
+git config --global alias.br branch
+git config --global alias.st status
+git config --global alias.last 'log -1 HEAD'</code></pre>
+
+                    <div class="tip-box">
+                        💡 <strong>Pro Alias:</strong> <code>git config --global alias.unstage 'reset HEAD --'</code>
+                    </div>
+
+                    <div class="objective-box">
+                        <div class="objective-header">
+                            <span class="objective-icon">🎯</span>
+                            <span class="objective-title">Your Objectives</span>
+                        </div>
+                        <ul class="objective-list" id="objectiveList">
+                        </ul>
+                    </div>
+                `,
+                initialGitState: {
+                    branches: ['main'],
+                    currentBranch: 'main',
+                    commits: [
+                        { message: "Initial commit", author: "You", files: ["README.md", ".gitmodules"] },
+                        { message: "Add dependencies", author: "You", files: ["package.json"] }
+                    ],
+                    submodules: ['shared-lib']
+                },
+                boss: null
+            },
+            {
+                id: 9,
+                title: "Level 10: Grand Wizard",
+                icon: "👑",
+                iconClass: "grand",
+                xpReward: 1000,
+                titleName: "Grand Wizard",
+                description: "The ultimate mastery test",
+                objectives: [
+                    "Demonstrate all core Git skills",
+                    "Complete a complex workflow challenge",
+                    "Pass the Final Exam",
+                    "Claim the title of Grand Wizard"
+                ],
+                content: `
+                    <h2>👑 The Final Challenge</h2>
+                    <p>You've come far, young wizard. Now face the ultimate test of your Git mastery!</p>
+
+                    <h3>The Grand Finale Scenario</h3>
+                    <p>You're working on a team project with multiple features. Your mission:</p>
+                    <ol>
+                        <li>Create a feature branch and make commits</li>
+                        <li>Create another branch for a hotfix</li>
+                        <li>Rebase your feature branch to main</li>
+                        <li>Cherry-pick the hotfix to main</li>
+                        <li>Merge everything cleanly</li>
+                    </ol>
+
+                    <h3>What You've Learned</h3>
+                    <ul>
+                        <li>✅ Repository setup and configuration</li>
+                        <li>✅ Staging and committing</li>
+                        <li>✅ Branching and merging</li>
+                        <li>✅ Conflict resolution</li>
+                        <li>✅ Stashing and tagging</li>
+                        <li>✅ Rebasing (basic and interactive)</li>
+                        <li>✅ Recovery with reflog</li>
+                        <li>✅ Cherry-picking and bisecting</li>
+                        <li>✅ Submodules and hooks</li>
+                    </ul>
+
+                    <div class="warning-box">
+                        ⚠️ <strong>Warning:</strong> The Final Exam tests ALL your skills. Be prepared!
+                    </div>
+
+                    <div class="objective-box">
+                        <div class="objective-header">
+                            <span class="objective-icon">🎯</span>
+                            <span class="objective-title">Your Final Objectives</span>
+                        </div>
+                        <ul class="objective-list" id="objectiveList">
+                        </ul>
+                    </div>
+                `,
+                initialGitState: {
+                    branches: ['main'],
+                    currentBranch: 'main',
+                    commits: [
+                        { message: "Initial commit", author: "Team", files: ["README.md"] }
+                    ]
+                },
+                finalExam: true,
+                boss: {
+                    name: "The Git Dragon",
+                    avatar: "🐲",
+                    hp: 200,
+                    dialogue: "Only true Git masters may pass through me! Show me your power!",
+                    hint: "Combine all your skills: branches, commits, rebase, and merge!"
+                }
+            }
+        ];
+
+        // ==========================================
+        // 🏆 ACHIEVEMENTS
+        // ==========================================
+        const achievements = [
+            { id: 'first_commit', icon: '🎯', name: 'First Blood', desc: 'Make your first commit', condition: () => gameState.commits >= 1 },
+            { id: 'five_commits', icon: '📝', name: 'Writer\'s Block', desc: 'Make 5 commits', condition: () => gameState.commits >= 5 },
+            { id: 'ten_commits', icon: '✍️', name: 'Prolific Author', desc: 'Make 10 commits', condition: () => gameState.commits >= 10 },
+            { id: 'first_branch', icon: '🔀', name: 'Branch Out', desc: 'Create your first branch', condition: () => gameState.branches >= 2 },
+            { id: 'five_branches', icon: '🌳', name: 'Tree Hugger', desc: 'Create 5 branches', condition: () => gameState.branches >= 5 },
+            { id: 'first_merge', icon: '🤝', name: 'First Merge', desc: 'Complete your first merge', condition: () => gameState.merges >= 1 },
+            { id: 'five_merges', icon: '🔗', name: 'Merger Master', desc: 'Complete 5 merges', condition: () => gameState.merges >= 5 },
+            { id: 'first_conflict', icon: '⚔️', name: 'Battlefield Ready', desc: 'Face your first conflict', condition: () => gameState.conflicts >= 1 },
+            { id: 'conflict_crusher', icon: '💪', name: 'Conflict Crusher', desc: 'Resolve 5 conflicts', condition: () => gameState.conflicts >= 5 },
+            { id: 'first_stash', icon: '📦', name: 'Hoarder', desc: 'Stash your first changes', condition: () => localStorage.getItem('gwa_stash') === 'true' },
+            { id: 'first_rebase', icon: '🔄', name: 'Time Traveler', desc: 'Perform your first rebase', condition: () => localStorage.getItem('gwa_rebase') === 'true' },
+            { id: 'interactive_rebase', icon: '🎛️', name: 'Precision Artist', desc: 'Complete an interactive rebase', condition: () => localStorage.getItem('gwa_interactive_rebase') === 'true' },
+            { id: 'first_cherrypick', icon: '🍒', name: 'Cherry Picker', desc: 'Cherry-pick your first commit', condition: () => localStorage.getItem('gwa_cherrypick') === 'true' },
+            { id: 'first_tag', icon: '🏷️', name: 'Tag Team', desc: 'Create your first tag', condition: () => localStorage.getItem('gwa_tag') === 'true' },
+            { id: 'first_recovery', icon: '🔧', name: 'Doctor Git', desc: 'Recover lost work with reflog', condition: () => localStorage.getItem('gwa_recovery') === 'true' },
+            { id: 'all_levels', icon: '👑', name: 'Grand Wizard', desc: 'Complete all levels', condition: () => gameState.completedLevels.length >= 10 },
+            { id: 'streak_7', icon: '🔥', name: 'On Fire', desc: '7-day streak', condition: () => gameState.streak >= 7 },
+            { id: 'commands_100', icon: '⌨️', name: 'Keyboard Warrior', desc: 'Run 100 commands', condition: () => gameState.commandsUsed >= 100 },
+            { id: 'hint_free', icon: '💡', name: 'Independent', desc: 'Complete a level without hints', condition: () => localStorage.getItem('gwa_nohint') === 'true' },
+            { id: 'speed_demon', icon: '⚡', name: 'Speed Demon', desc: 'Complete a level in under 2 minutes', condition: () => localStorage.getItem('gwa_speedrun') === 'true' },
+            { id: 'perfect_level', icon: '💯', name: 'Perfectionist', desc: 'Complete a level with perfect execution', condition: () => localStorage.getItem('gwa_perfect') === 'true' }
+        ];
+
+        // ==========================================
+        // 💻 TERMINAL SIMULATOR
+        // ==========================================
+        const gitCommands = {
+            help: () => {
+                return `Available Git Commands:
+  git init           - Initialize a new repository
+  git config         - Configure Git settings
+  git status         - Show working tree status
+  git add            - Add file contents to the index
+  git commit         - Record changes to the repository
+  git log            - Show commit logs
+  git log --oneline  - Compact commit history
+  git branch         - List, create, or delete branches
+  git checkout       - Switch branches or restore files
+  git switch         - Switch branches (Git 2.23+)
+  git merge          - Join two or more development histories
+  git stash          - Stash changes temporarily
+  git tag            - Create, list, delete tags
+  git rebase         - Forward-port local commits
+  git cherry-pick    - Apply some commits from another branch
+  git bisect         - Find by binary search the commit that introduced a bug
+  git reflog         - Manage reflog information
+  git reset          - Reset current HEAD to specified state
+  git rm             - Remove files from the working tree
+  
+Game Commands:
+  hint               - Get a hint for current objective
+  level              - Show current level info
+  xp                 - Show your XP status
+  
+Tip: Complete objectives to advance!`;
+            },
+            
+            init: () => {
+                if (gameState.gitState.branches.length > 1 || gameState.gitState.commits.length > 0) {
+                    return { success: false, message: 'fatal: reinitializing an existing Git repository' };
+                }
+                gameState.gitState.branches = ['main'];
+                gameState.gitState.currentBranch = 'main';
+                return { success: true, message: 'Initialized empty Git repository', xp: 15 };
+            },
+            
+            config: (args) => {
+                if (args.includes('--global') && (args.includes('user.name') || args.includes('user.email'))) {
+                    return { success: true, message: `Configured ${args.includes('user.name') ? 'user.name' : 'user.email'}`, xp: 10 };
+                }
+                if (args.length === 0) {
+                    return { success: true, message: 'error: please specify --global and user.name/email', xp: 0 };
+                }
+                return { success: true, message: 'Configuration updated', xp: 5 };
+            },
+            
+            status: () => {
+                const lesson = lessons[gameState.currentLevel];
+                const status = [];
+                status.push(`On branch ${gameState.gitState.currentBranch}`);
+                
+                if (gameState.gitState.commits.length === 0) {
+                    status.push('');
+                    status.push('No commits yet');
+                    status.push('nothing to commit (create/copy files and use "git add")');
+                } else {
+                    status.push('');
+                    const branchCount = gameState.gitState.branches.length;
+                    const commitCount = gameState.gitState.commits.length;
+                    status.push(`${branchCount} branch${branchCount > 1 ? 'es' : ''} (${commitCount} commit${commitCount > 1 ? 's' : ''})`);
+                    status.push('');
+                    status.push('nothing to commit, working tree clean');
+                }
+                
+                return { success: true, message: status.join('\n'), xp: 5 };
+            },
+            
+            add: (args) => {
+                if (args.length === 0) {
+                    return { success: false, message: 'Nothing specified, nothing added.', xp: 0 };
+                }
+                if (gameState.gitState.commits.length === 0 && gameState.gitState.branches.length <= 1) {
+                    return { success: false, message: 'fatal: not a git repository (or any of the parent directories): .git', xp: 0 };
+                }
+                
+                const files = args.filter(a => !a.startsWith('-'));
+                gameState.gitState.staged.push(...files);
+                return { success: true, message: `Added ${files.length} file(s)`, xp: 10 };
+            },
+            
+            commit: (args) => {
+                if (gameState.gitState.staged.length === 0 && !args.includes('--amend')) {
+                    return { success: false, message: 'nothing to commit (use "git add")', xp: 0 };
+                }
+                
+                let message = 'Update';
+                const msgIndex = args.findIndex(a => a === '-m');
+                if (msgIndex !== -1 && args[msgIndex + 1]) {
+                    message = args[msgIndex + 1].replace(/^["']|["']$/g, '');
+                } else {
+                    message = args.includes('--amend') ? 'Amend commit' : 'Commit changes';
+                }
+                
+                const newCommit = {
+                    message: message,
+                    author: 'You',
+                    files: [...gameState.gitState.staged],
+                    branch: gameState.gitState.currentBranch
+                };
+                
+                gameState.gitState.commits.push(newCommit);
+                gameState.gitState.staged = [];
+                gameState.commits++;
+                
+                checkObjective('commit');
+                
+                const xp = 25 + (gameState.gitState.currentBranch === 'main' ? 5 : 10);
+                return { success: true, message: `[${gameState.gitState.currentBranch} ${gameState.gitState.commits}] ${message}`, xp };
+            },
+            
+            log: (args) => {
+                if (gameState.gitState.commits.length === 0) {
+                    return { success: true, message: 'fatal: your current branch does not have any commits yet', xp: 0 };
+                }
+                
+                const oneline = args.includes('--oneline');
+                const all = args.includes('--all');
+                const graph = args.includes('--graph');
+                const decorate = args.includes('--decorate');
+                
+                let output = '';
+                const commits = gameState.gitState.commits.slice().reverse();
+                
+                commits.forEach((commit, index) => {
+                    const shortHash = Math.abs(index - commits.length + 1).toString(16).padStart(7, '0');
+                    const branchTag = commit.branch !== 'main' ? `(${commit.branch})` : '';
+                    
+                    if (oneline) {
+                        output += `${shortHash} ${commit.message} ${branchTag}\n`;
+                    } else {
+                        output += `commit ${shortHash}${branchTag ? ` (${branchTag})` : ''}\n`;
+                        output += `Author: ${commit.author}\n`;
+                        output += `Date:   ${new Date().toLocaleString()}\n\n`;
+                        output += `    ${commit.message}\n\n`;
+                    }
+                });
+                
+                return { success: true, message: output, xp: 8 };
+            },
+            
+            branch: (args) => {
+                const createIndex = args.findIndex(a => a === '-c' || a === '--create');
+                const deleteIndex = args.findIndex(a => a === '-d' || a === '--delete');
+                const listOnly = args.length === 0 || args.includes('-a') || args.includes('-l');
+                
+                if (listOnly) {
+                    let output = '';
+                    gameState.gitState.branches.forEach(branch => {
+                        const prefix = branch === gameState.gitState.currentBranch ? '* ' : '  ';
+                        const color = branch === gameState.gitState.currentBranch ? '\x1b[1;32m' : '';
+                        const reset = '\x1b[0m';
+                        output += `${prefix}${color}${branch}${reset}\n`;
+                    });
+                    return { success: true, message: output || 'No branches yet', xp: 5 };
+                }
+                
+                if (createIndex !== -1 && args[createIndex + 1]) {
+                    const newBranch = args[createIndex + 1];
+                    if (gameState.gitState.branches.includes(newBranch)) {
+                        return { success: false, message: `fatal: A branch named '${newBranch}' already exists.`, xp: 0 };
+                    }
+                    gameState.gitState.branches.push(newBranch);
+                    gameState.branches++;
+                    localStorage.setItem('gwa_branch_created', 'true');
+                    return { success: true, message: `Branch '${newBranch}' created`, xp: 20 };
+                }
+                
+                if (deleteIndex !== -1 && args[deleteIndex + 1]) {
+                    const toDelete = args[deleteIndex + 1];
+                    if (toDelete === 'main' || toDelete === gameState.gitState.currentBranch) {
+                        return { success: false, message: `error: Cannot delete branch '${toDelete}' checked out`, xp: 0 };
+                    }
+                    if (!gameState.gitState.branches.includes(toDelete)) {
+                        return { success: false, message: `error: branch '${toDelete}' not found`, xp: 0 };
+                    }
+                    gameState.gitState.branches = gameState.gitState.branches.filter(b => b !== toDelete);
+                    return { success: true, message: `Deleted branch ${toDelete}`, xp: 15 };
+                }
+                
+                return { success: true, message: 'usage: git branch [-c|--create] <branch-name> | [-d|--delete] <branch-name>', xp: 0 };
+            },
+            
+            checkout: (args) => {
+                const branchIndex = args.findIndex(a => !a.startsWith('-'));
+                if (branchIndex !== -1) {
+                    const branch = args[branchIndex];
+                    if (!gameState.gitState.branches.includes(branch)) {
+                        return { success: false, message: `error: pathspec '${branch}' did not match any file(s) known to git`, xp: 0 };
+                    }
+                    gameState.gitState.currentBranch = branch;
+                    return { success: true, message: `Switched to branch '${branch}'`, xp: 15 };
+                }
+                return { success: true, message: 'usage: git checkout <branch-name>', xp: 0 };
+            },
+            
+            switch: (args) => {
+                const createIndex = args.findIndex(a => a === '-c' || a === '--create');
+                const branchIndex = args.findIndex(a => !a.startsWith('-'));
+                
+                if (createIndex !== -1 && args[createIndex + 1]) {
+                    const newBranch = args[createIndex + 1];
+                    if (gameState.gitState.branches.includes(newBranch)) {
+                        return { success: false, message: `fatal: A branch named '${newBranch}' already exists.`, xp: 0 };
+                    }
+                    gameState.gitState.branches.push(newBranch);
+                    gameState.gitState.currentBranch = newBranch;
+                    gameState.branches++;
+                    return { success: true, message: `Switched to a new branch '${newBranch}'`, xp: 20 };
+                }
+                
+                if (branchIndex !== -1) {
+                    const branch = args[branchIndex];
+                    if (!gameState.gitState.branches.includes(branch)) {
+                        return { success: false, message: `error: branch '${branch}' not found`, xp: 0 };
+                    }
+                    gameState.gitState.currentBranch = branch;
+                    return { success: true, message: `Switched to branch '${branch}'`, xp: 15 };
+                }
+                
+                return { success: true, message: 'usage: git switch [-c|--create] <branch>', xp: 0 };
+            },
+            
+            merge: (args) => {
+                if (args.length === 0) {
+                    return { success: false, message: 'Nothing to merge', xp: 0 };
+                }
+                
+                const sourceBranch = args[0];
+                if (sourceBranch === gameState.gitState.currentBranch) {
+                    return { success: false, message: 'Already up to date.', xp: 0 };
+                }
+                
+                const hasMain = gameState.gitState.currentBranch === 'main' && sourceBranch !== 'main';
+                gameState.merges++;
+                localStorage.setItem('gwa_merge', 'true');
+                checkObjective('merge');
+                
+                return { success: true, message: `Merge made by the 'recursive' strategy.`, xp: 40 };
+            },
+            
+            stash: (args) => {
+                if (args.includes('save') || args.length === 0) {
+                    localStorage.setItem('gwa_stash', 'true');
+                    checkObjective('stash');
+                    return { success: true, message: 'Saved working directory changes', xp: 20 };
+                }
+                if (args.includes('list')) {
+                    return { success: true, message: 'stash@{0}: WIP on ...', xp: 5 };
+                }
+                if (args.includes('pop')) {
+                    return { success: true, message: 'Dropped refs/stash@{0} (restored files)', xp: 15 };
+                }
+                return { success: true, message: 'git stash save "message" | list | pop | drop', xp: 0 };
+            },
+            
+            tag: (args) => {
+                const annotateIndex = args.findIndex(a => a === '-a');
+                if (args.length === 0) {
+                    return { success: true, message: 'No tags yet', xp: 0 };
+                }
+                const tagName = args[0];
+                localStorage.setItem('gwa_tag', 'true');
+                checkObjective('tag');
+                return { success: true, message: annotateIndex !== -1 ? `[ tagged ${tagName} ]` : `Tagged ${tagName}`, xp: 25 };
+            },
+            
+            rebase: (args) => {
+                localStorage.setItem('gwa_rebase', 'true');
+                if (args.includes('-i') || args.includes('--interactive')) {
+                    localStorage.setItem('gwa_interactive_rebase', 'true');
+                    return { success: true, message: 'Successfully rebased', xp: 50 };
+                }
+                return { success: true, message: 'Successfully rebased', xp: 35 };
+            },
+            
+            cherrypick: (args) => {
+                localStorage.setItem('gwa_cherrypick', 'true');
+                checkObjective('cherrypick');
+                return { success: true, message: '[cherry-pick] Applied commit', xp: 45 };
+            },
+            
+            bisect: (args) => {
+                if (args.includes('start')) {
+                    return { success: true, message: 'Bisect started. Good and bad commits needed.', xp: 10 };
+                }
+                if (args.includes('good') || args.includes('bad')) {
+                    return { success: true, message: 'Bisect: checking commits...', xp: 15 };
+                }
+                if (args.includes('run')) {
+                    return { success: true, message: 'Bisect complete! Found the culprit.', xp: 30 };
+                }
+                return { success: true, message: 'git bisect start | good <commit> | bad <commit> | run <script>', xp: 0 };
+            },
+            
+            reflog: () => {
+                localStorage.setItem('gwa_recovery', 'true');
+                return { success: true, message: `${gameState.gitState.commits.length} reflog entries shown`, xp: 15 };
+            },
+            
+            reset: (args) => {
+                if (args.includes('--hard')) {
+                    return { success: true, message: 'HEAD is now at ...', xp: 15 };
+                }
+                return { success: true, message: 'Unstaged changes', xp: 10 };
+            },
+            
+            rm: (args) => {
+                return { success: true, message: 'Removed files', xp: 10 };
+            }
+        };
+
+        // ==========================================
+        // 🎮 GAME FUNCTIONS
+        // ==========================================
+        
+        function initGame() {
+            // Load saved state
+            const saved = localStorage.getItem('gwa_gameState');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                Object.assign(gameState, parsed);
+            }
+            
+            // Show entrance animation
+            setTimeout(() => {
+                document.getElementById('entranceOverlay').classList.add('hidden');
+            }, 2000);
+            
+            // Render UI
+            renderLevelNav();
+            renderAchievements();
+            loadLevel(gameState.currentLevel);
+            
+            // Terminal input handler
+            document.getElementById('terminalInput').addEventListener('keydown', handleTerminalInput);
+        }
+        
+        function handleTerminalInput(e) {
+            if (e.key === 'Enter') {
+                const input = e.target.value.trim();
+                if (!input) return;
+                
+                processCommand(input);
+                e.target.value = '';
+            }
+        }
+        
+        function processCommand(input) {
+            const terminalHistory = document.getElementById('terminalHistory');
+            const cmdLine = document.createElement('div');
+            cmdLine.className = 'terminal-output command';
+            cmdLine.textContent = `$ ${input}`;
+            terminalHistory.appendChild(cmdLine);
+            
+            const parts = input.split(' ');
+            const cmd = parts[0];
+            const args = parts.slice(1);
+            
+            gameState.commandHistory.push(input);
+            gameState.commandsUsed++;
+            document.getElementById('commandsUsed').textContent = gameState.commandsUsed;
+            
+            // Check if it's a git command
+            if (cmd === 'git') {
+                const gitCmd = args[0];
+                if (gitCommands[gitCmd]) {
+                    const result = gitCommands[gitCmd](args.slice(1));
+                    
+                    const outputDiv = document.createElement('div');
+                    outputDiv.className = `terminal-output ${result.success ? 'success' : 'error'}`;
+                    outputDiv.textContent = result.message || 'Command executed';
+                    terminalHistory.appendChild(outputDiv);
+                    
+                    if (result.success && result.xp) {
+                        addXP(result.xp, e => {
+                            const xpPop = document.createElement('div');
+                            xpPop.className = 'xp-pop';
+                            xpPop.textContent = `+${result.xp} XP`;
+                            xpPop.style.left = e.clientX + 'px';
+                            xpPop.style.top = e.clientY + 'px';
+                            document.body.appendChild(xpPop);
+                            setTimeout(() => xpPop.remove(), 1000);
+                        });
+                    }
+                    
+                    checkObjectives();
+                } else if (gitCmd === undefined) {
+                    const outputDiv = document.createElement('div');
+                    outputDiv.className = 'terminal-output info';
+                    outputDiv.textContent = 'usage: git <command> [<args>]';
+                    terminalHistory.appendChild(outputDiv);
+                } else {
+                    const outputDiv = document.createElement('div');
+                    outputDiv.className = 'terminal-output error';
+                    outputDiv.textContent = `git: '${gitCmd}' is not a git command. See 'git help'.`;
+                    terminalHistory.appendChild(outputDiv);
+                }
+            } else if (cmd === 'hint') {
+                showHint();
+            } else if (cmd === 'level') {
+                showLevelInfo();
+            } else if (cmd === 'xp') {
+                showXPInfo();
+            } else if (cmd === 'clear') {
+                terminalHistory.innerHTML = '';
+            } else {
+                const outputDiv = document.createElement('div');
+                outputDiv.className = 'terminal-output error';
+                outputDiv.textContent = `${cmd}: command not found`;
+                terminalHistory.appendChild(outputDiv);
+            }
+            
+            // Scroll to bottom
+            const terminalBody = document.getElementById('terminalOutput');
+            terminalBody.scrollTop = terminalBody.scrollHeight;
+            
+            saveGame();
+        }
+        
+        function addXP(amount, eventCallback) {
+            gameState.totalXP += amount;
+            gameState.xpForCurrentLevel += amount;
+            
+            // Level up check
+            while (gameState.xpForCurrentLevel >= gameState.xpRequiredForLevel) {
+                gameState.xpForCurrentLevel -= gameState.xpRequiredForLevel;
+                levelUp();
+            }
+            
+            updateStats();
+            
+            if (eventCallback) {
+                document.addEventListener('click', eventCallback, { once: true });
+            }
+        }
+        
+        function levelUp() {
+            // Show celebration
+            const modal = document.getElementById('levelCompleteModal');
+            document.getElementById('modalTitle').textContent = '🎉 Level Up!';
+            document.getElementById('modalSubtitle').textContent = `You reached Level ${gameState.currentLevel + 1}!`;
+            document.getElementById('modalXP').textContent = `+${gameState.xpRequiredForLevel} XP`;
+            modal.classList.add('show');
+        }
+        
+        function updateStats() {
+            document.getElementById('currentLevel').textContent = gameState.currentLevel + 1;
+            document.getElementById('currentTitle').textContent = lessons[gameState.currentLevel].titleName;
+            document.getElementById('currentXP').textContent = gameState.totalXP;
+            
+            const xpPercent = (gameState.xpForCurrentLevel / gameState.xpRequiredForLevel) * 100;
+            document.getElementById('xpBar').style.width = `${Math.min(xpPercent, 100)}%`;
+            
+            document.getElementById('commitsCount').textContent = gameState.commits;
+            document.getElementById('branchesCount').textContent = gameState.branches;
+            document.getElementById('mergesCount').textContent = gameState.merges;
+            document.getElementById('conflictsCount').textContent = gameState.conflicts;
+        }
+        
+        function loadLevel(levelIndex) {
+            gameState.currentLevel = levelIndex;
+            const lesson = lessons[levelIndex];
+            
+            // Reset git state for level
+            gameState.gitState = JSON.parse(JSON.stringify(lesson.initialGitState));
+            gameState.currentObjectives = [...lesson.objectives];
+            
+            // Update UI
+            document.getElementById('lessonContent').innerHTML = lesson.content;
+            renderObjectives();
+            renderLevelNav();
+            updateStats();
+            
+            // Clear terminal
+            document.getElementById('terminalHistory').innerHTML = '';
+            
+            // Boss fight?
+            if (lesson.boss) {
+                setTimeout(() => startBossFight(lesson.boss), 1000);
+            }
+            
+            saveGame();
+        }
+        
+        function renderObjectives() {
+            const lesson = lessons[gameState.currentLevel];
+            const objList = document.getElementById('objectiveList');
+            if (!objList) return;
+            
+            objList.innerHTML = '';
+            lesson.objectives.forEach((obj, index) => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <div class="objective-checkbox ${gameState.currentObjectives[index] === 'complete' ? 'complete' : ''}">
+                        ${gameState.currentObjectives[index] === 'complete' ? '✓' : ''}
+                    </div>
+                    <span>${obj}</span>
+                `;
+                objList.appendChild(li);
+            });
+        }
+        
+        function checkObjectives() {
+            const lesson = lessons[gameState.currentLevel];
+            
+            // Check based on game state
+            lesson.objectives.forEach((obj, index) => {
+                if (gameState.currentObjectives[index] === 'complete') return;
+                
+                let complete = false;
+                const objLower = obj.toLowerCase();
+                
+                if (objLower.includes('config') && gameState.commandHistory.some(c => c.includes('config') && c.includes('user.name'))) {
+                    complete = true;
+                } else if (objLower.includes('init') && gameState.gitState.branches.length > 0) {
+                    complete = true;
+                } else if (objLower.includes('first commit') && gameState.commits >= 1) {
+                    complete = true;
+                } else if (objLower.includes('commit') && gameState.commits >= lesson.objectives.filter(o => o.toLowerCase().includes('commit')).length) {
+                    complete = true;
+                } else if (objLower.includes('branch') && gameState.gitState.branches.length > 1) {
+                    complete = true;
+                } else if (objLower.includes('switch') && gameState.commandHistory.some(c => c.includes('checkout') || c.includes('switch'))) {
+                    complete = true;
+                } else if (objLower.includes('merge') && gameState.merges >= 1) {
+                    complete = true;
+                } else if (objLower.includes('status') && gameState.commandHistory.some(c => c.includes('status'))) {
+                    complete = true;
+                } else if (objLower.includes('history') && gameState.commandHistory.some(c => c.includes('log'))) {
+                    complete = true;
+                } else if (objLower.includes('stash') && localStorage.getItem('gwa_stash') === 'true') {
+                    complete = true;
+                } else if (objLower.includes('tag') && localStorage.getItem('gwa_tag') === 'true') {
+                    complete = true;
+                } else if (objLower.includes('rebase') && localStorage.getItem('gwa_rebase') === 'true') {
+                    complete = true;
+                } else if (objLower.includes('cherry') && localStorage.getItem('gwa_cherrypick') === 'true') {
+                    complete = true;
+                }
+                
+                if (complete) {
+                    gameState.currentObjectives[index] = 'complete';
+                    renderObjectives();
+                    checkLevelComplete();
+                }
+            });
+        }
+        
+        function checkObjective(type) {
+            gameState.currentObjectives.forEach((obj, index) => {
+                if (gameState.currentObjectives[index] === 'complete') return;
+                
+                const objLower = lessons[gameState.currentLevel].objectives[index].toLowerCase();
+                if (objLower.includes(type)) {
+                    gameState.currentObjectives[index] = 'complete';
+                    renderObjectives();
+                    checkLevelComplete();
+                }
+            });
+        }
+        
+        function checkLevelComplete() {
+            const allComplete = gameState.currentObjectives.every(o => o === 'complete');
+            if (allComplete && !gameState.completedLevels.includes(gameState.currentLevel)) {
+                gameState.completedLevels.push(gameState.currentLevel);
+                
+                // Show level complete modal
+                setTimeout(() => {
+                    const lesson = lessons[gameState.currentLevel];
+                    document.getElementById('modalTitle').textContent = `${lesson.icon} ${lesson.title}`;
+                    document.getElementById('modalSubtitle').textContent = lesson.description;
+                    document.getElementById('modalXP').textContent = `+${lesson.xpReward} XP`;
+                    document.getElementById('levelCompleteModal').classList.add('show');
+                }, 500);
+            }
+        }
+        
+        function renderLevelNav() {
+            const nav = document.getElementById('levelNav');
+            nav.innerHTML = '';
+            
+            lessons.forEach((lesson, index) => {
+                const btn = document.createElement('div');
+                btn.className = `level-btn ${index === gameState.currentLevel ? 'active' : ''} ${gameState.completedLevels.includes(index) ? 'completed' : ''} ${index > Math.max(...gameState.completedLevels, -1) + 1 ? 'locked' : ''}`;
+                btn.innerHTML = `
+                    <div class="level-icon ${lesson.iconClass}">${lesson.icon}</div>
+                    <div class="level-info">
+                        <div class="level-name">${lesson.title}</div>
+                        <div class="level-desc">${lesson.description}</div>
+                    </div>
+                    <div class="level-status">
+                        ${gameState.completedLevels.includes(index) ? '✓' : ''}
+                    </div>
+                `;
+                btn.onclick = () => {
+                    if (index <= Math.max(...gameState.completedLevels, -1) + 1) {
+                        loadLevel(index);
+                    }
+                };
+                nav.appendChild(btn);
+            });
+        }
+        
+        function renderAchievements() {
+            const grid = document.getElementById('achievementsGrid');
+            grid.innerHTML = '';
+            
+            achievements.forEach(ach => {
+                const unlocked = ach.condition();
+                const div = document.createElement('div');
+                div.className = `achievement ${unlocked ? 'unlocked' : 'locked'}`;
+                div.innerHTML = `
+                    <div class="achievement-icon">${ach.icon}</div>
+                    <div class="achievement-tooltip">
+                        <strong>${ach.name}</strong><br>${ach.desc}
+                    </div>
+                `;
+                grid.appendChild(div);
+                
+                if (unlocked && !gameState.achievements.includes(ach.id)) {
+                    gameState.achievements.push(ach.id);
+                    showAchievementPopup(ach);
+                }
+            });
+        }
+        
+        function showAchievementPopup(achievement) {
+            const popup = document.getElementById('achievementPopup');
+            document.getElementById('achievementPopupIcon').textContent = achievement.icon;
+            document.getElementById('achievementPopupTitle').textContent = achievement.name;
+            document.getElementById('achievementPopupDesc').textContent = achievement.desc;
+            popup.classList.add('show');
+            
+            setTimeout(() => popup.classList.remove('show'), 3000);
+        }
+        
+        function showHint() {
+            const hints = {
+                0: ["Try: git config --global user.name \"Your Name\"", "Then: git init to start", "After that: git add <file> and git commit -m \"message\""],
+                1: ["Use: git status to see your repo", "Use: git log to see history", "Try creating and committing files"],
+                2: ["git checkout -b feature-name creates a branch", "Switch with: git checkout feature-name", "Merge with: git merge feature-name"],
+                3: ["Find the conflict markers <<< >>>", "Edit the file to fix the conflict", "Then: git add <file> and git commit"],
+                4: ["git stash saves your work temporarily", "git stash list shows stashes", "git stash pop restores your work"],
+                5: ["git rebase main moves your branch", "Use -i flag for interactive mode", "squash combines commits together"],
+                6: ["git reflog shows all your movements", "Find the lost commit hash", "git branch recovered <hash>"],
+                7: ["git cherry-pick <commit> copies it", "git bisect finds bugs automatically", "Start with: git bisect start"],
+                8: ["git submodule add <repo> adds dependencies", "Create hooks in .git/hooks/", "Use aliases: git config --global alias.st status"],
+                9: ["Combine all your skills!", "Branches + commits + rebase + merge", "You're the Grand Wizard now!"]
+            };
+            
+            const terminalHistory = document.getElementById('terminalHistory');
+            const hintLevel = hints[gameState.currentLevel] || hints[0];
+            const randomHint = hintLevel[Math.floor(Math.random() * hintLevel.length)];
+            
+            const outputDiv = document.createElement('div');
+            outputDiv.className = 'terminal-output info';
+            outputDiv.textContent = `💡 Hint: ${randomHint}`;
+            terminalHistory.appendChild(outputDiv);
+        }
+        
+        function showLevelInfo() {
+            const terminalHistory = document.getElementById('terminalHistory');
+            const lesson = lessons[gameState.currentLevel];
+            
+            const outputDiv = document.createElement('div');
+            outputDiv.className = 'terminal-output';
+            outputDiv.textContent = `Current Level: ${lesson.title}\nXP: ${gameState.totalXP}\nObjectives complete: ${gameState.currentObjectives.filter(o => o === 'complete').length}/${gameState.currentObjectives.length}`;
+            terminalHistory.appendChild(outputDiv);
+        }
+        
+        function showXPInfo() {
+            const terminalHistory = document.getElementById('terminalHistory');
+            
+            const outputDiv = document.createElement('div');
+            outputDiv.className = 'terminal-output';
+            outputDiv.textContent = `Total XP: ${gameState.totalXP}\nLevel: ${gameState.currentLevel + 1}\nProgress to next level: ${Math.round((gameState.xpForCurrentLevel / gameState.xpRequiredForLevel) * 100)}%`;
+            terminalHistory.appendChild(outputDiv);
+        }
+        
+        let bossHP = 100;
+        
+        function startBossFight(boss) {
+            const overlay = document.getElementById('bossOverlay');
+            document.getElementById('bossAvatar').textContent = boss.avatar;
+            document.getElementById('bossName').textContent = boss.name;
+            document.getElementById('bossDialogue').textContent = `"${boss.dialogue}"`;
+            document.getElementById('bossHint').textContent = boss.hint;
+            
+            bossHP = 100;
+            updateBossHealth();
+            overlay.classList.add('show');
+        }
+        
+        function damageBoss(amount) {
+            bossHP -= amount;
+            if (bossHP < 0) bossHP = 0;
+            updateBossHealth();
+            
+            if (bossHP <= 0) {
+                setTimeout(() => {
+                    document.getElementById('bossOverlay').classList.remove('show');
+                    addXP(100);
+                    showAchievementPopup({ icon: '🏆', name: 'Boss Slayer', desc: 'Defeated a boss!' });
+                }, 500);
+            }
+        }
+        
+        function updateBossHealth() {
+            document.getElementById('bossHealthBar').style.width = `${bossHP}%`;
+            document.getElementById('bossHP').textContent = bossHP;
+        }
+        
+        function closeModal() {
+            document.getElementById('levelCompleteModal').classList.remove('show');
+        }
+        
+        function nextLevel() {
+            closeModal();
+            if (gameState.currentLevel < lessons.length - 1) {
+                loadLevel(gameState.currentLevel + 1);
+            } else {
+                // Game complete!
+                alert('🎉 CONGRATULATIONS! You are now a Git Grand Wizard! 🧙‍♂️');
+            }
+        }
+        
+        function saveGame() {
+            localStorage.setItem('gwa_gameState', JSON.stringify(gameState));
+        }
+        
+        // Sound toggle
+        document.getElementById('soundToggle').addEventListener('click', function() {
+            this.textContent = this.textContent === '🔊' ? '🔇' : '🔊';
+        });
+        
+        // Initialize game on load
+        window.onload = initGame;
+    </script>
+</body>
+</html>
