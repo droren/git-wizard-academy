@@ -140,6 +140,7 @@
             display: flex;
             gap: 30px;
             flex-wrap: wrap;
+            align-items: center;
         }
 
         .stat {
@@ -367,7 +368,7 @@
 
         .terminal-body {
             padding: 20px;
-            height: 400px;
+            height: 450px;
             overflow-y: auto;
             font-family: 'Fira Code', 'Consolas', monospace;
             font-size: 0.95rem;
@@ -905,6 +906,89 @@
             color: var(--accent-blue);
             font-weight: bold;
         }
+
+        /* 📝 Nano Editor Modal */
+        .nano-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1004;
+        }
+
+        .nano-overlay.show {
+            display: flex;
+        }
+
+        .nano-editor {
+            background: #1e1e1e;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 800px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        .nano-header {
+            background: #2d2d2d;
+            padding: 10px 15px;
+            border-radius: 8px 8px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nano-filename {
+            color: var(--accent-green);
+            font-weight: bold;
+        }
+
+        .nano-close {
+            background: var(--accent-red);
+            border: none;
+            color: white;
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .nano-body {
+            padding: 10px;
+        }
+
+        .nano-textarea {
+            width: 100%;
+            height: 300px;
+            background: #0c0c0c;
+            border: 1px solid #30363d;
+            color: var(--text-primary);
+            font-family: 'Fira Code', monospace;
+            font-size: 14px;
+            padding: 10px;
+            resize: none;
+            outline: none;
+        }
+
+        .nano-help {
+            background: #2d2d2d;
+            padding: 10px 15px;
+            border-radius: 0 0 8px 8px;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .nano-help kbd {
+            background: #3d3d3d;
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin: 0 2px;
+        }
     </style>
 </head>
 <body>
@@ -984,7 +1068,7 @@
                 <div id="terminalHistory"></div>
                 <div class="terminal-input-line">
                     <span class="terminal-prompt">$</span>
-                    <input type="text" class="terminal-input" id="terminalInput" autofocus placeholder="Enter git command...">
+                    <input type="text" class="terminal-input" id="terminalInput" autofocus placeholder="Enter command...">
                 </div>
             </div>
         </section>
@@ -1072,7 +1156,180 @@
         <div class="achievement-popup-desc" id="achievementPopupDesc">You did something amazing!</div>
     </div>
 
+    <!-- 📝 Nano Editor Modal -->
+    <div class="nano-overlay" id="nanoOverlay">
+        <div class="nano-editor">
+            <div class="nano-header">
+                <span class="nano-filename" id="nanoFilename">filename.txt</span>
+                <button class="nano-close" onclick="closeNano()">×</button>
+            </div>
+            <div class="nano-body">
+                <textarea class="nano-textarea" id="nanoTextarea"></textarea>
+            </div>
+            <div class="nano-help">
+                <kbd>Ctrl</kbd>+<kbd>O</kbd> Save &nbsp;&nbsp;
+                <kbd>Ctrl</kbd>+<kbd>X</kbd> Exit &nbsp;&nbsp;
+                <kbd>Ctrl</kbd>+<kbd>W</kbd> Where Is &nbsp;&nbsp;
+                <kbd>^</kbd> = <kbd>Ctrl</kbd>
+            </div>
+        </div>
+    </div>
+
     <script>
+        // ==========================================
+        // 📁 FILE SYSTEM SIMULATION
+        // ==========================================
+        const fileSystem = {
+            '/': {
+                type: 'directory',
+                children: {}
+            }
+        };
+
+        let currentPath = '/';
+        const pathHistory = ['/'];
+
+        function getCurrentDir() {
+            let dir = fileSystem['/'];
+            const parts = currentPath.split('/').filter(p => p);
+            for (const part of parts) {
+                if (dir.children[part]) {
+                    dir = dir.children[part];
+                }
+            }
+            return dir;
+        }
+
+        function resolvePath(path) {
+            if (!path) return currentPath;
+            
+            if (path.startsWith('/')) {
+                currentPath = '/';
+                path = path.slice(1);
+            }
+            
+            const parts = currentPath.split('/').filter(p => p);
+            const newParts = path.split('/').filter(p => p);
+            
+            for (const part of newParts) {
+                if (part === '..') {
+                    parts.pop();
+                } else if (part === '.') {
+                    continue;
+                } else {
+                    parts.push(part);
+                }
+            }
+            
+            return '/' + parts.join('/');
+        }
+
+        function createFile(path, content = '') {
+            const fullPath = resolvePath(path);
+            const parts = fullPath.split('/').filter(p => p);
+            let current = fileSystem['/'];
+            
+            for (let i = 0; i < parts.length - 1; i++) {
+                const part = parts[i];
+                if (!current.children[part]) {
+                    current.children[part] = { type: 'directory', children: {} };
+                }
+                current = current.children[part];
+            }
+            
+            const filename = parts[parts.length - 1];
+            current.children[filename] = {
+                type: 'file',
+                content: content,
+                modified: new Date()
+            };
+            
+            return true;
+        }
+
+        function readFile(path) {
+            const fullPath = resolvePath(path);
+            const parts = fullPath.split('/').filter(p => p);
+            let current = fileSystem['/'];
+            
+            for (const part of parts) {
+                if (current.children[part]) {
+                    current = current.children[part];
+                } else {
+                    return null;
+                }
+            }
+            
+            return current.type === 'file' ? current : null;
+        }
+
+        function listDirectory(path = '.') {
+            const fullPath = resolvePath(path);
+            const parts = fullPath.split('/').filter(p => p);
+            let current = fileSystem['/'];
+            
+            for (const part of parts) {
+                if (current.children[part]) {
+                    current = current.children[part];
+                } else {
+                    return [];
+                }
+            }
+            
+            if (current.type !== 'directory') {
+                return [];
+            }
+            
+            return Object.keys(current.children).map(name => {
+                const item = current.children[name];
+                return {
+                    name: name,
+                    type: item.type,
+                    modified: item.modified
+                };
+            });
+        }
+
+        function deletePath(path) {
+            const fullPath = resolvePath(path);
+            const parts = fullPath.split('/').filter(p => p);
+            
+            if (parts.length === 0) return false;
+            
+            let current = fileSystem['/'];
+            for (let i = 0; i < parts.length - 1; i++) {
+                if (current.children[parts[i]]) {
+                    current = current.children[parts[i]];
+                } else {
+                    return false;
+                }
+            }
+            
+            const last = parts[parts.length - 1];
+            if (current.children[last]) {
+                delete current.children[last];
+                return true;
+            }
+            return false;
+        }
+
+        function createDirectory(path) {
+            const fullPath = resolvePath(path);
+            const parts = fullPath.split('/').filter(p => p);
+            
+            if (parts.length === 0) return false;
+            
+            let current = fileSystem['/'];
+            for (const part of parts) {
+                if (!current.children[part]) {
+                    current.children[part] = { type: 'directory', children: {} };
+                }
+                current = current.children[part];
+            }
+            
+            return true;
+        }
+
         // ==========================================
         // 🎮 GAME STATE
         // ==========================================
@@ -1094,11 +1351,10 @@
                 branches: ['main'],
                 currentBranch: 'main',
                 commits: [],
-                staged: [],
-                unstaged: []
+                staged: []
             },
-            history: [],
-            commandHistory: []
+            commandHistory: [],
+            nanoFile: null
         };
 
         // ==========================================
@@ -1114,7 +1370,7 @@
                 titleName: "Novice Initiate",
                 description: "Your journey begins here",
                 objectives: [
-                    "Configure your git identity",
+                    "Configure your git identity (name and email)",
                     "Initialize a new repository",
                     "Create your first file and stage it",
                     "Make your first commit"
@@ -1127,6 +1383,9 @@
                     <ul>
                         <li><code>git config</code> - Set up your identity</li>
                         <li><code>git init</code> - Start a new repository</li>
+                        <li><code>echo</code> - Create files with content</li>
+                        <li><code>ls</code> - List files in directory</li>
+                        <li><code>cat</code> - Display file contents</li>
                         <li><code>git add</code> - Stage files for commit</li>
                         <li><code>git commit</code> - Save your changes permanently</li>
                     </ul>
@@ -1144,13 +1403,21 @@ git config --global user.email "your@email.com"</code></pre>
                     <p>A repository (or "repo") is where Git stores all the tracking information:</p>
                     <pre><code>git init</code></pre>
 
+                    <h3>Creating Files</h3>
+                    <p>Use echo to create files:</p>
+                    <pre><code>echo "Hello World" > hello.txt
+echo "My Project" > README.md</code></pre>
+
+                    <h3>Check What You Have</h3>
+                    <pre><code>ls              # List files
+cat hello.txt    # Show file content</code></pre>
+
                     <div class="objective-box">
                         <div class="objective-header">
                             <span class="objective-icon">🎯</span>
                             <span class="objective-title">Your Objectives</span>
                         </div>
                         <ul class="objective-list" id="objectiveList">
-                            <!-- Populated by JS -->
                         </ul>
                     </div>
                 `,
@@ -1347,8 +1614,7 @@ git commit -m "Resolve merge conflict"</code></pre>
                         { message: "Initial commit", author: "You", files: ["README.md"] },
                         { message: "Add feature on main", author: "You", files: ["app.js"] }
                     ],
-                    staged: [],
-                    unstaged: []
+                    staged: []
                 },
                 conflictScenario: true,
                 boss: {
@@ -1581,8 +1847,7 @@ git rebase main</code></pre>
                     commits: [
                         { message: "Initial commit", author: "You", files: ["README.md"] },
                         { message: "Add feature", author: "You", files: ["app.js"] },
-                        { message: "Add more", author: "You", files: ["utils.js"] },
-                        { message: "Oops, deleted work here", author: "You", files: [], orphaned: true }
+                        { message: "Add more", author: "You", files: ["utils.js"] }
                     ]
                 },
                 boss: null
@@ -1842,94 +2107,615 @@ git config --global alias.last 'log -1 HEAD'</code></pre>
         ];
 
         // ==========================================
-        // 💻 TERMINAL SIMULATOR
+        // 💻 SHELL COMMANDS
         // ==========================================
-        const gitCommands = {
+        const shellCommands = {
             help: () => {
-                return `Available Git Commands:
-  git init           - Initialize a new repository
-  git config         - Configure Git settings
-  git status         - Show working tree status
-  git add            - Add file contents to the index
-  git commit         - Record changes to the repository
-  git log            - Show commit logs
-  git log --oneline  - Compact commit history
-  git branch         - List, create, or delete branches
-  git checkout       - Switch branches or restore files
-  git switch         - Switch branches (Git 2.23+)
-  git merge          - Join two or more development histories
-  git stash          - Stash changes temporarily
-  git tag            - Create, list, delete tags
-  git rebase         - Forward-port local commits
-  git cherry-pick    - Apply some commits from another branch
-  git bisect         - Find by binary search the commit that introduced a bug
-  git reflog         - Manage reflog information
-  git reset          - Reset current HEAD to specified state
-  git rm             - Remove files from the working tree
-  
-Game Commands:
-  hint               - Get a hint for current objective
-  level              - Show current level info
-  xp                 - Show your XP status
-  
-Tip: Complete objectives to advance!`;
+                return {
+                    success: true,
+                    message: `Available Commands:
+
+╔═══════════════════════════════════════════════════════╗
+║  GIT COMMANDS                                         ║
+╠═══════════════════════════════════════════════════════╣
+║  git init           - Initialize repository           ║
+║  git config         - Configure Git settings          ║
+║  git status         - Show working tree status        ║
+║  git add            - Stage file contents             ║
+║  git commit         - Record changes                  ║
+║  git log            - Show commit logs                ║
+║  git branch         - List/create/delete branches     ║
+║  git checkout       - Switch branches                 ║
+║  git switch         - Switch branches (Git 2.23+)     ║
+║  git merge          - Join development histories      ║
+║  git stash          - Stash changes                   ║
+║  git tag            - Create/list/delete tags         ║
+║  git rebase         - Forward-port commits            ║
+║  git cherry-pick    - Apply commits                   ║
+║  git bisect         - Binary search for bugs          ║
+║  git reflog         - Manage reflog                   ║
+║  git reset          - Reset current HEAD              ║
+║  git help           - Show git help                   ║
+╠═══════════════════════════════════════════════════════╣
+║  SHELL COMMANDS                                       ║
+╠═══════════════════════════════════════════════════════╣
+║  ls              - List directory contents            ║
+║  cd              - Change directory                   ║
+║  pwd             - Print working directory            ║
+║  cat             - Concatenate and display files      ║
+║  echo            - Display a line of text             ║
+║  mkdir           - Create directories                 ║
+║  rm              - Remove files                       ║
+║  rmdir           - Remove directories                 ║
+║  grep            - Search text patterns               ║
+║  nano            - Simple file editor                 ║
+║  clear           - Clear the terminal                 ║
+║  whoami          - Print current user                 ║
+║  date            - Print date and time                ║
+║  history         - Show command history               ║
+║  help            - Show this help                     ║
+╚═══════════════════════════════════════════════════════╝`
+                };
             },
             
-            init: () => {
-                if (gameState.gitState.branches.length > 1 || gameState.gitState.commits.length > 0) {
-                    return { success: false, message: 'fatal: reinitializing an existing Git repository' };
+            ls: (args) => {
+                const all = args.includes('-a') || args.includes('--all');
+                const long = args.includes('-l');
+                
+                const items = listDirectory(args[args.length - 1] || '.');
+                let output = '';
+                
+                if (items.length === 0) {
+                    return { success: true, message: '(empty directory)' };
                 }
+                
+                if (long) {
+                    items.forEach(item => {
+                        const perms = item.type === 'directory' ? 'drwxr-xr-x' : '-rw-r--r--';
+                        const date = item.modified ? new Date(item.modified).toLocaleDateString() : 'today';
+                        output += `${perms}  1  user  group  128  ${date}  ${item.name}${item.type === 'directory' ? '/' : ''}\n`;
+                    });
+                } else {
+                    output = items.map(item => {
+                        const name = item.name;
+                        const isDir = item.type === 'directory';
+                        return isDir ? `\x1b[34m${name}/\x1b[0m` : name;
+                    }).join('  ');
+                }
+                
+                return { success: true, message: output, isRaw: true };
+            },
+            
+            cd: (args) => {
+                const path = args[0] || '/';
+                
+                if (path === '~' || path === '$HOME') {
+                    currentPath = '/';
+                    pathHistory.push('/');
+                    return { success: true, message: '' };
+                }
+                
+                if (path === '-') {
+                    if (pathHistory.length > 1) {
+                        pathHistory.pop(); // Remove current
+                        currentPath = pathHistory[pathHistory.length - 1];
+                    }
+                    return { success: true, message: '' };
+                }
+                
+                const newPath = resolvePath(path);
+                const parts = newPath.split('/').filter(p => p);
+                let current = fileSystem['/'];
+                
+                for (const part of parts) {
+                    if (current.children[part] && current.children[part].type === 'directory') {
+                        current = current.children[part];
+                    } else if (current.children[part]) {
+                        // It's a file, not a directory
+                        return { success: false, message: `cd: ${path}: Not a directory` };
+                    } else if (part === '..' || part === '.') {
+                        continue;
+                    } else {
+                        return { success: false, message: `cd: ${path}: No such file or directory` };
+                    }
+                }
+                
+                currentPath = newPath || '/';
+                pathHistory.push(currentPath);
+                return { success: true, message: '' };
+            },
+            
+            pwd: () => {
+                return { success: true, message: currentPath };
+            },
+            
+            cat: (args) => {
+                if (args.length === 0) {
+                    return { success: false, message: 'cat: missing operand' };
+                }
+                
+                let output = '';
+                args.forEach(path => {
+                    const file = readFile(path);
+                    if (file) {
+                        output += file.content + (args.length > 1 ? '\n\n' : '');
+                    } else {
+                        output += `cat: ${path}: No such file or directory\n`;
+                    }
+                });
+                
+                return { success: true, message: output.trim() };
+            },
+            
+            echo: (args) => {
+                // Handle echo "text" > file
+                let output = args.join(' ');
+                
+                // Check for redirection
+                const redirectIndex = args.findIndex(a => a === '>' || a === '>>');
+                if (redirectIndex !== -1 && args[redirectIndex + 1]) {
+                    const text = args.slice(0, redirectIndex).join(' ').replace(/^["']|["']$/g, '');
+                    const filename = args[redirectIndex + 1];
+                    const append = args[redirectIndex] === '>>';
+                    
+                    // If file exists, append or overwrite
+                    const existing = readFile(filename);
+                    const newContent = append && existing ? existing.content + '\n' + text : text;
+                    
+                    createFile(filename, newContent);
+                    return { success: true, message: '' };
+                }
+                
+                // Regular echo
+                output = output.replace(/^["']|["']$/g, '');
+                return { success: true, message: output };
+            },
+            
+            mkdir: (args) => {
+                if (args.length === 0) {
+                    return { success: false, message: 'mkdir: missing operand' };
+                }
+                
+                args.forEach(path => {
+                    createDirectory(path);
+                });
+                
+                return { success: true, message: '' };
+            },
+            
+            rm: (args) => {
+                const recursive = args.includes('-r') || args.includes('-R');
+                const force = args.includes('-f');
+                
+                // Filter out flags
+                const paths = args.filter(a => !a.startsWith('-'));
+                
+                if (paths.length === 0) {
+                    return { success: false, message: 'rm: missing operand' };
+                }
+                
+                paths.forEach(path => {
+                    if (!deletePath(path)) {
+                        if (!force) {
+                            return { success: false, message: `rm: cannot remove '${path}': No such file or directory` };
+                        }
+                    }
+                });
+                
+                return { success: true, message: '' };
+            },
+            
+            rmdir: (args) => {
+                if (args.length === 0) {
+                    return { success: false, message: 'rmdir: missing operand' };
+                }
+                
+                args.forEach(path => {
+                    const fullPath = resolvePath(path);
+                    const parts = fullPath.split('/').filter(p => p);
+                    let current = fileSystem['/'];
+                    
+                    for (let i = 0; i < parts.length - 1; i++) {
+                        if (current.children[parts[i]]) {
+                            current = current.children[parts[i]];
+                        }
+                    }
+                    
+                    const last = parts[parts.length - 1];
+                    if (current.children[last] && current.children[last].type === 'directory') {
+                        if (Object.keys(current.children[last].children).length === 0) {
+                            delete current.children[last];
+                        } else {
+                            return { success: false, message: `rmdir: ${path}: Directory not empty` };
+                        }
+                    } else {
+                        return { success: false, message: `rmdir: ${path}: No such directory` };
+                    }
+                });
+                
+                return { success: true, message: '' };
+            },
+            
+            grep: (args) => {
+                const recursive = args.includes('-r');
+                
+                // Simple grep implementation
+                let pattern = args[0];
+                let paths = args.slice(1);
+                
+                if (!pattern) {
+                    return { success: false, message: 'grep: missing pattern' };
+                }
+                
+                if (paths.length === 0) {
+                    paths = ['.'];
+                }
+                
+                pattern = pattern.replace(/^["']|["']$/g, '');
+                let output = '';
+                
+                paths.forEach(path => {
+                    const file = readFile(path);
+                    if (file) {
+                        const lines = file.content.split('\n');
+                        lines.forEach((line, index) => {
+                            if (line.toLowerCase().includes(pattern.toLowerCase())) {
+                                output += `${path}:${index + 1}:${line}\n`;
+                            }
+                        });
+                    }
+                });
+                
+                if (!output) {
+                    return { success: false, message: '' };
+                }
+                
+                return { success: true, message: output.trim() };
+            },
+            
+            nano: (args) => {
+                const filename = args[0] || 'untitled';
+                
+                // Open nano editor
+                gameState.nanoFile = filename;
+                const existing = readFile(filename);
+                const content = existing ? existing.content : '';
+                
+                document.getElementById('nanoFilename').textContent = filename;
+                document.getElementById('nanoTextarea').value = content;
+                document.getElementById('nanoOverlay').classList.add('show');
+                document.getElementById('nanoTextarea').focus();
+                
+                return { success: true, message: `Opening ${filename} in nano editor...`, isSystem: true };
+            },
+            
+            clear: () => {
+                document.getElementById('terminalHistory').innerHTML = '';
+                return { success: true, message: '', isSystem: true };
+            },
+            
+            whoami: () => {
+                return { success: true, message: 'git-wizard-user' };
+            },
+            
+            date: () => {
+                return { success: true, message: new Date().toString() };
+            },
+            
+            history: (args) => {
+                let output = '';
+                gameState.commandHistory.forEach((cmd, index) => {
+                    output += `${index + 1}  ${cmd}\n`;
+                });
+                return { success: true, message: output.trim() };
+            }
+        };
+
+        // ==========================================
+        // 💻 GIT COMMANDS
+        // ==========================================
+        const gitCommands = {
+            help: (args) => {
+                const cmd = args[0];
+                
+                if (cmd) {
+                    // Specific command help
+                    const helpText = {
+                        init: `git-init(1)                        Git Manual                        git-init(1)
+
+NAME
+       git-init - Create an empty Git repository
+
+SYNOPSIS
+       git init [-q | --quiet] [--bare] [--template=<template_directory>]
+                 [--separate-git-dir <git dir>]
+                 [--object-format=<format>]
+
+DESCRIPTION
+       This command creates an empty Git repository - basically a .git
+       directory with subdirectories for objects, refs, and so on.`,
+                        add: `git-add(1)                      Git Manual                      git-add(1)
+
+NAME
+       git-add - Add file contents to the index
+
+SYNOPSIS
+       git add [-n] [-v] [--force | -u] [--] <pathspec>...
+
+DESCRIPTION
+       This command updates the index using the current found in the
+       working tree and thus prepares the content staged for the next
+       commit.`,
+                        commit: `git-commit(1)                    Git Manual                    git-commit(1)
+
+NAME
+       git-commit - Record changes to the repository
+
+SYNOPSIS
+       git commit [-a | --interactive | --patch] [-s] [-v] [-u<mode>]
+                  [--amend] [--dry-run] [(-c | -C | --fixup | --squash) <commit>]
+                  [-F <file> | -m <msg>] [--reset-author] [--allow-empty]
+                  [--allow-empty-message] [--no-verify] [-e] [--author=<author>]
+                  [--date=<date>] [-S[<keyid>]] -- <pathspec>...`,
+                        status: `git-status(1)                   Git Manual                   git-status(1)
+
+NAME
+       git-status - Show the working tree status
+
+SYNOPSIS
+       git status [<options>...] [--] <pathspec>...`,
+                        log: `git-log(1)                       Git Manual                       git-log(1)
+
+NAME
+       git-log - Show commit logs
+
+SYNOPSIS
+       git log [<options>] [<revision range>] [[--] <path>...]`,
+                        branch: `git-branch(1)                   Git Manual                   git-branch(1)
+
+NAME
+       git-branch - List, create, or delete branches
+
+SYNOPSIS
+       git branch [--color[=<when>] | --no-color] [--show-current]
+                  [-v [--abbrev=<n> | --no-abbrev]]
+                  [--column[=<options>] | --no-column] [(-r | --list) [<pattern>]]
+       git branch --track <new-branch> [<start-point>]
+       git branch --set-upstream-to=<upstream> [<branch>]
+       git branch (-d | -D) <branch>
+       git branch (-m | -M) [<oldbranch>] <newbranch>`,
+                        checkout: `git-checkout(1)                Git Manual                git-checkout(1)
+
+NAME
+       git-checkout - Switch branches or restore working tree files
+
+SYNOPSIS
+       git checkout [<options>] <branch> [<commit> [<spec>...]]
+       git checkout [<options>] <commit> [--] <pathspec>...`,
+                        merge: `git-merge(1)                    Git Manual                    git-merge(1)
+
+NAME
+       git-merge - Join two or more development histories
+
+SYNOPSIS
+       git merge [--edit | --no-edit] [-n] [--stat] [--no-commit]
+                 [--squash | --no-squash]
+                 [-s <strategy>] [-X <strategy-option>]
+                 [-S[<keyid>]] [--[no-]allow-unrelated-histories]
+                 [--remerge-changes]
+                 [-m <msg>] [<commit>...]`,
+                        stash: `git-stash(1)                    Git Manual                    git-stash(1)
+
+NAME
+       git-stash - Stash the changes in a dirty working directory
+
+SYNOPSIS
+       git stash [list [<options>]]
+       git stash show [<options>] [<stash>]
+       git stash drop [-q | --quiet] [<stash>]
+       git stash ( pop | apply ) [--index] [-q | --quiet] [<stash>]`,
+                        tag: `git-tag(1)                       Git Manual                       git-tag(1)
+
+NAME
+       git-tag - Create, list, delete or verify a tag object
+
+SYNOPSIS
+       git tag [-a | -s] [-u <key-id>] [-f] [-m <msg> | -F <file>]
+               <tagname> [<commit> | <object>]
+       git tag -d <tagname>
+       git tag -l [-n[<num>]] [--contains <commit>] [--no-contains <commit>]
+                  [--points-at <object>] [<pattern>...]`,
+                        rebase: `git-rebase(1)                   Git Manual                   git-rebase(1)
+
+NAME
+       git-rebase - Forward-port local commits to the updated upstream head
+
+SYNOPSIS
+       git rebase [-i | --interactive] [<options>] [--exec <cmd>]
+                  [--preserve-merges] [<upstream> [<branch>]]`,
+                        cherrypick: `git-cherry-pick(1)             Git Manual             git-cherry-pick(1)
+
+NAME
+       git-cherry-pick - Apply the changes introduced by some existing commits
+
+SYNOPSIS
+       git cherry-pick [--edit] [-n] [-x] [-s] [-m <parent-number>]
+                       [--ff] [--allow-empty] [--allow-empty-message]
+                       [--no-edit] [-S[<keyid>]] <commit>...`
+                    };
+                    
+                    if (helpText[cmd]) {
+                        return { success: true, message: helpText[cmd], xp: 5 };
+                    } else {
+                        return { success: false, message: `git: '${cmd}' is not a git command. See 'git help'.` };
+                    }
+                }
+                
+                return {
+                    success: true,
+                    message: `Git - the stupid content tracker
+
+usage: git [--version] [--help] [-C <path>] [-c <name>=<value>]
+           [--exec-path[=<path>]] [--html-path] [--man-path] [--info-path]
+           [-p | --paginate | -P | --no-pager] [--no-replace-objects] [--bare]
+           [--git-dir=<path>] [--work-tree=<path>] [--namespace=<name>]
+           <command> [<args>]
+
+These are common Git commands used in various situations:
+
+start a working area (see also: git help tutorial)
+   clone     Clone a repository into a new directory
+   init      Create an empty Git repository or reinitialize an existing one
+
+work on the current change (see also: git help everyday)
+   add       Add file contents to the index
+   mv        Move or rename a file, a directory, or a symlink
+   rm        Remove files from the working tree and from the index
+
+examine the history and state (see also: git help revisions)
+   bisect    Find by binary search the change that introduced a bug
+   diff      Show changes between commits, commit and working tree, etc
+   grep      Print lines matching a pattern
+   log       Show commit logs
+   show      Show various types of objects
+   status    Show the working tree status
+
+grow, mark and tweak your common history
+   branch    List, create, or delete branches
+   commit    Record changes to the repository
+   merge     Join two or more development histories
+   rebase    Forward-port local commits to the updated upstream head
+   tag       Create, list, delete or verify a tag object
+
+collaborate (see also: git help workflows)
+   fetch     Download objects and refs from another repository
+   pull      Fetch from and integrate with another repository or a local branch
+   push      Update remote refs along with associated objects
+
+'git help -a' and 'git help -g' list available subcommands and some
+concept guides. See 'git help <command>' or 'git help <concept>'
+to read about a specific subcommand or concept.`,
+                    xp: 5
+                };
+            },
+            
+            init: (args) => {
+                if (gameState.gitState.commits.length > 0 || gameState.gitState.branches.length > 1) {
+                    return { success: false, message: 'fatal: reinitializing an existing Git repository', xp: 0 };
+                }
+                
+                // Initialize .git structure
+                if (!readFile('.git')) {
+                    createFile('.git/config', '[core]\n\trepositoryformatversion = 0\n\tfilemode = false\n\tbare = false\n\tlogallrefupdates = true');
+                    createFile('.git/HEAD', 'ref: refs/heads/main');
+                    createDirectory('.git/refs');
+                    createDirectory('.git/refs/heads');
+                    createDirectory('.git/objects');
+                    createDirectory('.git/objects/pack');
+                    createDirectory('.git/objects/info');
+                }
+                
                 gameState.gitState.branches = ['main'];
                 gameState.gitState.currentBranch = 'main';
-                return { success: true, message: 'Initialized empty Git repository', xp: 15 };
+                return { success: true, message: 'Initialized empty Git repository in .git/', xp: 20 };
             },
             
             config: (args) => {
-                if (args.includes('--global') && (args.includes('user.name') || args.includes('user.email'))) {
-                    return { success: true, message: `Configured ${args.includes('user.name') ? 'user.name' : 'user.email'}`, xp: 10 };
+                const isGlobal = args.includes('--global');
+                const isLocal = args.includes('--local');
+                const isSystem = args.includes('--system');
+                
+                let nameArg = args.find(a => a.includes('user.name'));
+                let emailArg = args.find(a => a.includes('user.email'));
+                
+                if (nameArg || emailArg) {
+                    const nameValue = nameArg ? nameArg.split('=')[1].replace(/^["']|["']$/g, '') : null;
+                    const emailValue = emailArg ? emailArg.split('=')[1].replace(/^["']|["']$/g, '') : null;
+                    
+                    if (nameValue) {
+                        createFile(isGlobal ? '~/.gitconfig' : '.gitconfig', `[user]\n\tname = ${nameValue}\n`);
+                    }
+                    if (emailValue) {
+                        createFile(isGlobal ? '~/.gitconfig' : '.gitconfig', `[user]\n\temail = ${emailValue}\n`);
+                    }
+                    
+                    return { success: true, message: nameValue ? `Configured user.name = ${nameValue}` : `Configured user.email = ${emailValue}`, xp: 10 };
                 }
-                if (args.length === 0) {
-                    return { success: true, message: 'error: please specify --global and user.name/email', xp: 0 };
-                }
-                return { success: true, message: 'Configuration updated', xp: 5 };
+                
+                return { success: true, message: 'usage: git config [--local|--global] user.name "Name" | user.email "email@domain.com"', xp: 0 };
             },
             
             status: () => {
-                const lesson = lessons[gameState.currentLevel];
                 const status = [];
                 status.push(`On branch ${gameState.gitState.currentBranch}`);
                 
-                if (gameState.gitState.commits.length === 0) {
-                    status.push('');
-                    status.push('No commits yet');
-                    status.push('nothing to commit (create/copy files and use "git add")');
-                } else {
-                    status.push('');
-                    const branchCount = gameState.gitState.branches.length;
-                    const commitCount = gameState.gitState.commits.length;
-                    status.push(`${branchCount} branch${branchCount > 1 ? 'es' : ''} (${commitCount} commit${commitCount > 1 ? 's' : ''})`);
+                // Count untracked/modified files
+                const files = listDirectory('.');
+                const gitignore = readFile('.gitignore');
+                const ignorePatterns = gitignore ? gitignore.content.split('\n').filter(l => l && !l.startsWith('#')) : [];
+                
+                const tracked = files.filter(f => {
+                    if (f.name === '.git' || f.name.startsWith('.')) return false;
+                    return !ignorePatterns.some(p => f.name.includes(p));
+                });
+                
+                const staged = gameState.gitState.staged;
+                
+                if (tracked.length === 0 && staged.length === 0) {
                     status.push('');
                     status.push('nothing to commit, working tree clean');
+                } else {
+                    status.push('');
+                    if (staged.length > 0) {
+                        status.push('Changes to be committed:');
+                        staged.forEach(f => {
+                            status.push(`  \x1b[32mnew file:\x1b[0m   ${f}`);
+                        });
+                    }
+                    
+                    const untracked = tracked.filter(f => !staged.includes(f.name));
+                    if (untracked.length > 0) {
+                        status.push('Untracked files:');
+                        untracked.forEach(f => {
+                            status.push(`  \x1b[31m??\x1b[0m ${f.name}`);
+                        });
+                    }
                 }
                 
-                return { success: true, message: status.join('\n'), xp: 5 };
+                return { success: true, message: status.join('\n'), isRaw: true, xp: 5 };
             },
             
             add: (args) => {
                 if (args.length === 0) {
                     return { success: false, message: 'Nothing specified, nothing added.', xp: 0 };
                 }
-                if (gameState.gitState.commits.length === 0 && gameState.gitState.branches.length <= 1) {
+                
+                if (gameState.gitState.branches.length === 1 && gameState.gitState.commits.length === 0 && !readFile('.git/config')) {
                     return { success: false, message: 'fatal: not a git repository (or any of the parent directories): .git', xp: 0 };
                 }
                 
-                const files = args.filter(a => !a.startsWith('-'));
-                gameState.gitState.staged.push(...files);
+                const files = args.filter(a => !a.startsWith('-') && a !== '--all' && a !== '-A');
+                
+                if (args.includes('--all') || args.includes('-A') || args.includes('.')) {
+                    // Add all files
+                    const allFiles = listDirectory('.').filter(f => f.name !== '.git');
+                    gameState.gitState.staged = [...new Set([...gameState.gitState.staged, ...allFiles.map(f => f.name)])];
+                    return { success: true, message: `Added ${allFiles.length} file(s)`, xp: 15 };
+                }
+                
+                files.forEach(f => {
+                    if (readFile(f)) {
+                        if (!gameState.gitState.staged.includes(f)) {
+                            gameState.gitState.staged.push(f);
+                        }
+                    }
+                });
+                
                 return { success: true, message: `Added ${files.length} file(s)`, xp: 10 };
             },
             
             commit: (args) => {
-                if (gameState.gitState.staged.length === 0 && !args.includes('--amend')) {
+                if (gameState.gitState.staged.length === 0 && !args.includes('--amend') && !args.includes('--allow-empty')) {
                     return { success: false, message: 'nothing to commit (use "git add")', xp: 0 };
                 }
                 
@@ -1937,15 +2723,16 @@ Tip: Complete objectives to advance!`;
                 const msgIndex = args.findIndex(a => a === '-m');
                 if (msgIndex !== -1 && args[msgIndex + 1]) {
                     message = args[msgIndex + 1].replace(/^["']|["']$/g, '');
-                } else {
-                    message = args.includes('--amend') ? 'Amend commit' : 'Commit changes';
+                } else if (args.includes('--amend')) {
+                    message = 'Amend previous commit';
                 }
                 
                 const newCommit = {
                     message: message,
                     author: 'You',
                     files: [...gameState.gitState.staged],
-                    branch: gameState.gitState.currentBranch
+                    branch: gameState.gitState.currentBranch,
+                    date: new Date()
                 };
                 
                 gameState.gitState.commits.push(newCommit);
@@ -1954,8 +2741,8 @@ Tip: Complete objectives to advance!`;
                 
                 checkObjective('commit');
                 
-                const xp = 25 + (gameState.gitState.currentBranch === 'main' ? 5 : 10);
-                return { success: true, message: `[${gameState.gitState.currentBranch} ${gameState.gitState.commits}] ${message}`, xp };
+                const xp = 30 + (gameState.gitState.currentBranch === 'main' ? 10 : 15);
+                return { success: true, message: `[${gameState.gitState.currentBranch} ${gameState.gitState.commits.length}] ${message}`, xp };
             },
             
             log: (args) => {
@@ -1972,15 +2759,15 @@ Tip: Complete objectives to advance!`;
                 const commits = gameState.gitState.commits.slice().reverse();
                 
                 commits.forEach((commit, index) => {
-                    const shortHash = Math.abs(index - commits.length + 1).toString(16).padStart(7, '0');
-                    const branchTag = commit.branch !== 'main' ? `(${commit.branch})` : '';
+                    const shortHash = (index + 1).toString(16).padStart(7, '0');
+                    const branchTag = commit.branch !== 'main' ? ` (${commit.branch})` : '';
                     
                     if (oneline) {
-                        output += `${shortHash} ${commit.message} ${branchTag}\n`;
+                        output += `${shortHash} ${commit.message}${branchTag}\n`;
                     } else {
-                        output += `commit ${shortHash}${branchTag ? ` (${branchTag})` : ''}\n`;
+                        output += `commit ${shortHash}${branchTag}\n`;
                         output += `Author: ${commit.author}\n`;
-                        output += `Date:   ${new Date().toLocaleString()}\n\n`;
+                        output += `Date:   ${commit.date ? commit.date.toLocaleString() : 'now'}\n\n`;
                         output += `    ${commit.message}\n\n`;
                     }
                 });
@@ -1997,11 +2784,9 @@ Tip: Complete objectives to advance!`;
                     let output = '';
                     gameState.gitState.branches.forEach(branch => {
                         const prefix = branch === gameState.gitState.currentBranch ? '* ' : '  ';
-                        const color = branch === gameState.gitState.currentBranch ? '\x1b[1;32m' : '';
-                        const reset = '\x1b[0m';
-                        output += `${prefix}${color}${branch}${reset}\n`;
+                        output += `${prefix}${branch}\n`;
                     });
-                    return { success: true, message: output || 'No branches yet', xp: 5 };
+                    return { success: true, message: output, xp: 5 };
                 }
                 
                 if (createIndex !== -1 && args[createIndex + 1]) {
@@ -2011,8 +2796,7 @@ Tip: Complete objectives to advance!`;
                     }
                     gameState.gitState.branches.push(newBranch);
                     gameState.branches++;
-                    localStorage.setItem('gwa_branch_created', 'true');
-                    return { success: true, message: `Branch '${newBranch}' created`, xp: 20 };
+                    return { success: true, message: `Branch '${newBranch}' created`, xp: 25 };
                 }
                 
                 if (deleteIndex !== -1 && args[deleteIndex + 1]) {
@@ -2024,21 +2808,28 @@ Tip: Complete objectives to advance!`;
                         return { success: false, message: `error: branch '${toDelete}' not found`, xp: 0 };
                     }
                     gameState.gitState.branches = gameState.gitState.branches.filter(b => b !== toDelete);
-                    return { success: true, message: `Deleted branch ${toDelete}`, xp: 15 };
+                    return { success: true, message: `Deleted branch ${toDelete}`, xp: 20 };
                 }
                 
-                return { success: true, message: 'usage: git branch [-c|--create] <branch-name> | [-d|--delete] <branch-name>', xp: 0 };
+                return { success: true, message: 'usage: git branch [-c|--create] <branch> | [-d|--delete] <branch>', xp: 0 };
             },
             
             checkout: (args) => {
                 const branchIndex = args.findIndex(a => !a.startsWith('-'));
                 if (branchIndex !== -1) {
                     const branch = args[branchIndex];
+                    
+                    // Check if it's a file checkout
+                    const doubleDash = args.indexOf('--');
+                    if (doubleDash !== -1) {
+                        return { success: true, message: `Restored ${args.slice(doubleDash + 1).join(' ')}`, xp: 10 };
+                    }
+                    
                     if (!gameState.gitState.branches.includes(branch)) {
                         return { success: false, message: `error: pathspec '${branch}' did not match any file(s) known to git`, xp: 0 };
                     }
                     gameState.gitState.currentBranch = branch;
-                    return { success: true, message: `Switched to branch '${branch}'`, xp: 15 };
+                    return { success: true, message: `Switched to branch '${branch}'`, xp: 20 };
                 }
                 return { success: true, message: 'usage: git checkout <branch-name>', xp: 0 };
             },
@@ -2055,7 +2846,7 @@ Tip: Complete objectives to advance!`;
                     gameState.gitState.branches.push(newBranch);
                     gameState.gitState.currentBranch = newBranch;
                     gameState.branches++;
-                    return { success: true, message: `Switched to a new branch '${newBranch}'`, xp: 20 };
+                    return { success: true, message: `Switched to a new branch '${newBranch}'`, xp: 25 };
                 }
                 
                 if (branchIndex !== -1) {
@@ -2064,7 +2855,7 @@ Tip: Complete objectives to advance!`;
                         return { success: false, message: `error: branch '${branch}' not found`, xp: 0 };
                     }
                     gameState.gitState.currentBranch = branch;
-                    return { success: true, message: `Switched to branch '${branch}'`, xp: 15 };
+                    return { success: true, message: `Switched to branch '${branch}'`, xp: 20 };
                 }
                 
                 return { success: true, message: 'usage: git switch [-c|--create] <branch>', xp: 0 };
@@ -2080,16 +2871,13 @@ Tip: Complete objectives to advance!`;
                     return { success: false, message: 'Already up to date.', xp: 0 };
                 }
                 
-                const hasMain = gameState.gitState.currentBranch === 'main' && sourceBranch !== 'main';
                 gameState.merges++;
-                localStorage.setItem('gwa_merge', 'true');
                 checkObjective('merge');
-                
-                return { success: true, message: `Merge made by the 'recursive' strategy.`, xp: 40 };
+                return { success: true, message: `Merge made by the 'recursive' strategy.`, xp: 45 };
             },
             
             stash: (args) => {
-                if (args.includes('save') || args.length === 0) {
+                if (args.includes('save') || args.length === 0 || args.some(a => !a.startsWith('-'))) {
                     localStorage.setItem('gwa_stash', 'true');
                     checkObjective('stash');
                     return { success: true, message: 'Saved working directory changes', xp: 20 };
@@ -2111,22 +2899,22 @@ Tip: Complete objectives to advance!`;
                 const tagName = args[0];
                 localStorage.setItem('gwa_tag', 'true');
                 checkObjective('tag');
-                return { success: true, message: annotateIndex !== -1 ? `[ tagged ${tagName} ]` : `Tagged ${tagName}`, xp: 25 };
+                return { success: true, message: annotateIndex !== -1 ? `[ tagged ${tagName} ]` : `Tagged ${tagName}`, xp: 30 };
             },
             
             rebase: (args) => {
                 localStorage.setItem('gwa_rebase', 'true');
                 if (args.includes('-i') || args.includes('--interactive')) {
                     localStorage.setItem('gwa_interactive_rebase', 'true');
-                    return { success: true, message: 'Successfully rebased', xp: 50 };
+                    return { success: true, message: 'Successfully rebased and edited 3 commits\nDetached HEAD at', xp: 55 };
                 }
-                return { success: true, message: 'Successfully rebased', xp: 35 };
+                return { success: true, message: 'Successfully rebased', xp: 40 };
             },
             
             cherrypick: (args) => {
                 localStorage.setItem('gwa_cherrypick', 'true');
                 checkObjective('cherrypick');
-                return { success: true, message: '[cherry-pick] Applied commit', xp: 45 };
+                return { success: true, message: '[cherry-pick] Applied commit', xp: 50 };
             },
             
             bisect: (args) => {
@@ -2137,25 +2925,28 @@ Tip: Complete objectives to advance!`;
                     return { success: true, message: 'Bisect: checking commits...', xp: 15 };
                 }
                 if (args.includes('run')) {
-                    return { success: true, message: 'Bisect complete! Found the culprit.', xp: 30 };
+                    return { success: true, message: 'Bisect complete! Found the culprit.', xp: 35 };
                 }
                 return { success: true, message: 'git bisect start | good <commit> | bad <commit> | run <script>', xp: 0 };
             },
             
             reflog: () => {
                 localStorage.setItem('gwa_recovery', 'true');
-                return { success: true, message: `${gameState.gitState.commits.length} reflog entries shown`, xp: 15 };
+                let output = '';
+                gameState.gitState.commits.forEach((c, i) => {
+                    output += `${i+1} ${c.branch}: commit ${c.message}\n`;
+                });
+                return { success: true, message: output || 'No reflog entries', xp: 15 };
             },
             
             reset: (args) => {
+                if (args.includes('--soft')) {
+                    return { success: true, message: 'HEAD is now at commit', xp: 15 };
+                }
                 if (args.includes('--hard')) {
-                    return { success: true, message: 'HEAD is now at ...', xp: 15 };
+                    return { success: true, message: 'HEAD is now at commit', xp: 20 };
                 }
                 return { success: true, message: 'Unstaged changes', xp: 10 };
-            },
-            
-            rm: (args) => {
-                return { success: true, message: 'Removed files', xp: 10 };
             }
         };
 
@@ -2183,6 +2974,33 @@ Tip: Complete objectives to advance!`;
             
             // Terminal input handler
             document.getElementById('terminalInput').addEventListener('keydown', handleTerminalInput);
+            
+            // Nano editor handlers
+            document.getElementById('nanoTextarea').addEventListener('keydown', handleNanoInput);
+        }
+        
+        function handleNanoInput(e) {
+            if (e.ctrlKey && e.key === 'o') {
+                e.preventDefault();
+                saveNano();
+            } else if (e.ctrlKey && e.key === 'x') {
+                e.preventDefault();
+                closeNano();
+            }
+        }
+        
+        function saveNano() {
+            const content = document.getElementById('nanoTextarea').value;
+            if (gameState.nanoFile) {
+                createFile(gameState.nanoFile, content);
+                addXP(10);
+            }
+            closeNano();
+        }
+        
+        function closeNano() {
+            document.getElementById('nanoOverlay').classList.remove('show');
+            gameState.nanoFile = null;
         }
         
         function handleTerminalInput(e) {
@@ -2203,7 +3021,7 @@ Tip: Complete objectives to advance!`;
             terminalHistory.appendChild(cmdLine);
             
             const parts = input.split(' ');
-            const cmd = parts[0];
+            const cmd = parts[0].toLowerCase();
             const args = parts.slice(1);
             
             gameState.commandHistory.push(input);
@@ -2216,18 +3034,20 @@ Tip: Complete objectives to advance!`;
                 if (gitCommands[gitCmd]) {
                     const result = gitCommands[gitCmd](args.slice(1));
                     
-                    const outputDiv = document.createElement('div');
-                    outputDiv.className = `terminal-output ${result.success ? 'success' : 'error'}`;
-                    outputDiv.textContent = result.message || 'Command executed';
-                    terminalHistory.appendChild(outputDiv);
+                    if (!result.isSystem) {
+                        const outputDiv = document.createElement('div');
+                        outputDiv.className = `terminal-output ${result.success ? 'success' : 'error'}`;
+                        outputDiv.innerHTML = result.message || 'Command executed';
+                        terminalHistory.appendChild(outputDiv);
+                    }
                     
                     if (result.success && result.xp) {
                         addXP(result.xp, e => {
                             const xpPop = document.createElement('div');
                             xpPop.className = 'xp-pop';
                             xpPop.textContent = `+${result.xp} XP`;
-                            xpPop.style.left = e.clientX + 'px';
-                            xpPop.style.top = e.clientY + 'px';
+                            xpPop.style.left = (e.clientX || 400) + 'px';
+                            xpPop.style.top = (e.clientY || 300) + 'px';
                             document.body.appendChild(xpPop);
                             setTimeout(() => xpPop.remove(), 1000);
                         });
@@ -2237,26 +3057,38 @@ Tip: Complete objectives to advance!`;
                 } else if (gitCmd === undefined) {
                     const outputDiv = document.createElement('div');
                     outputDiv.className = 'terminal-output info';
-                    outputDiv.textContent = 'usage: git <command> [<args>]';
+                    outputDiv.innerHTML = 'usage: git &lt;command&gt; [&lt;args&gt;]';
                     terminalHistory.appendChild(outputDiv);
                 } else {
                     const outputDiv = document.createElement('div');
                     outputDiv.className = 'terminal-output error';
-                    outputDiv.textContent = `git: '${gitCmd}' is not a git command. See 'git help'.`;
+                    outputDiv.innerHTML = `git: '${gitCmd}' is not a git command. See 'git help'.`;
                     terminalHistory.appendChild(outputDiv);
                 }
-            } else if (cmd === 'hint') {
-                showHint();
-            } else if (cmd === 'level') {
-                showLevelInfo();
-            } else if (cmd === 'xp') {
-                showXPInfo();
-            } else if (cmd === 'clear') {
-                terminalHistory.innerHTML = '';
+            } else if (cmd === 'help' || cmd === '?') {
+                const result = shellCommands.help();
+                const outputDiv = document.createElement('div');
+                outputDiv.className = 'terminal-output';
+                outputDiv.innerHTML = result.message;
+                terminalHistory.appendChild(outputDiv);
+                addXP(2);
+            } else if (shellCommands[cmd]) {
+                const result = shellCommands[cmd](args);
+                
+                if (!result.isSystem) {
+                    const outputDiv = document.createElement('div');
+                    outputDiv.className = `terminal-output ${result.success ? '' : 'error'}`;
+                    outputDiv.innerHTML = result.message || 'Command executed';
+                    terminalHistory.appendChild(outputDiv);
+                }
+                
+                if (result.success && result.xp) {
+                    addXP(result.xp);
+                }
             } else {
                 const outputDiv = document.createElement('div');
                 outputDiv.className = 'terminal-output error';
-                outputDiv.textContent = `${cmd}: command not found`;
+                outputDiv.innerHTML = `${cmd}: command not found`;
                 terminalHistory.appendChild(outputDiv);
             }
             
@@ -2285,7 +3117,6 @@ Tip: Complete objectives to advance!`;
         }
         
         function levelUp() {
-            // Show celebration
             const modal = document.getElementById('levelCompleteModal');
             document.getElementById('modalTitle').textContent = '🎉 Level Up!';
             document.getElementById('modalSubtitle').textContent = `You reached Level ${gameState.currentLevel + 1}!`;
@@ -2353,7 +3184,6 @@ Tip: Complete objectives to advance!`;
         function checkObjectives() {
             const lesson = lessons[gameState.currentLevel];
             
-            // Check based on game state
             lesson.objectives.forEach((obj, index) => {
                 if (gameState.currentObjectives[index] === 'complete') return;
                 
@@ -2414,7 +3244,6 @@ Tip: Complete objectives to advance!`;
             if (allComplete && !gameState.completedLevels.includes(gameState.currentLevel)) {
                 gameState.completedLevels.push(gameState.currentLevel);
                 
-                // Show level complete modal
                 setTimeout(() => {
                     const lesson = lessons[gameState.currentLevel];
                     document.getElementById('modalTitle').textContent = `${lesson.icon} ${lesson.title}`;
@@ -2486,7 +3315,7 @@ Tip: Complete objectives to advance!`;
         
         function showHint() {
             const hints = {
-                0: ["Try: git config --global user.name \"Your Name\"", "Then: git init to start", "After that: git add <file> and git commit -m \"message\""],
+                0: ["Try: git config --global user.name \"Your Name\"", "Then: git init to start", "After that: echo \"Hello\" > hello.txt then git add and commit"],
                 1: ["Use: git status to see your repo", "Use: git log to see history", "Try creating and committing files"],
                 2: ["git checkout -b feature-name creates a branch", "Switch with: git checkout feature-name", "Merge with: git merge feature-name"],
                 3: ["Find the conflict markers <<< >>>", "Edit the file to fix the conflict", "Then: git add <file> and git commit"],
@@ -2504,26 +3333,7 @@ Tip: Complete objectives to advance!`;
             
             const outputDiv = document.createElement('div');
             outputDiv.className = 'terminal-output info';
-            outputDiv.textContent = `💡 Hint: ${randomHint}`;
-            terminalHistory.appendChild(outputDiv);
-        }
-        
-        function showLevelInfo() {
-            const terminalHistory = document.getElementById('terminalHistory');
-            const lesson = lessons[gameState.currentLevel];
-            
-            const outputDiv = document.createElement('div');
-            outputDiv.className = 'terminal-output';
-            outputDiv.textContent = `Current Level: ${lesson.title}\nXP: ${gameState.totalXP}\nObjectives complete: ${gameState.currentObjectives.filter(o => o === 'complete').length}/${gameState.currentObjectives.length}`;
-            terminalHistory.appendChild(outputDiv);
-        }
-        
-        function showXPInfo() {
-            const terminalHistory = document.getElementById('terminalHistory');
-            
-            const outputDiv = document.createElement('div');
-            outputDiv.className = 'terminal-output';
-            outputDiv.textContent = `Total XP: ${gameState.totalXP}\nLevel: ${gameState.currentLevel + 1}\nProgress to next level: ${Math.round((gameState.xpForCurrentLevel / gameState.xpRequiredForLevel) * 100)}%`;
+            outputDiv.innerHTML = `💡 Hint: ${randomHint}`;
             terminalHistory.appendChild(outputDiv);
         }
         
@@ -2533,10 +3343,10 @@ Tip: Complete objectives to advance!`;
             const overlay = document.getElementById('bossOverlay');
             document.getElementById('bossAvatar').textContent = boss.avatar;
             document.getElementById('bossName').textContent = boss.name;
-            document.getElementById('bossDialogue').textContent = `"${boss.dialogue}"`;
+            document.getElementById('bossDialogue').innerHTML = `"${boss.dialogue}"`;
             document.getElementById('bossHint').textContent = boss.hint;
             
-            bossHP = 100;
+            bossHP = boss.hp || 100;
             updateBossHealth();
             overlay.classList.add('show');
         }
@@ -2569,7 +3379,6 @@ Tip: Complete objectives to advance!`;
             if (gameState.currentLevel < lessons.length - 1) {
                 loadLevel(gameState.currentLevel + 1);
             } else {
-                // Game complete!
                 alert('🎉 CONGRATULATIONS! You are now a Git Grand Wizard! 🧙‍♂️');
             }
         }
