@@ -24,6 +24,13 @@ function extractGuides() {
   return fn({});
 }
 
+function extractStoryArc() {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'story-arc.js'), 'utf8');
+  // eslint-disable-next-line no-new-func
+  const fn = new Function('window', `${src}\nreturn window.storyArc;`);
+  return fn({});
+}
+
 function baseState() {
   return {
     currentLevel: 0,
@@ -36,6 +43,7 @@ function baseState() {
       startCommitTotal: 0,
       startMergeTotal: 0,
       startBranchCount: 1,
+      startBranchName: 'main',
     },
     gitState: {
       branches: ['main'],
@@ -61,8 +69,10 @@ function includesAny(cmds, needles) {
 function run() {
   const lessons = extractLessons();
   const guides = extractGuides();
+  const arc = extractStoryArc();
 
   assert(Array.isArray(lessons) && lessons.length === 10, 'expected 10 lessons');
+  assert(arc && arc.lessonLore, 'story arc should exist');
 
   // Every objective in every campaign level must be backed by a strict rule.
   for (let level = 0; level < lessons.length; level++) {
@@ -75,7 +85,7 @@ function run() {
 
   // Make sure playback intros demonstrate core command families per level.
   const expected = {
-    0: ['git config', 'git init', 'git add', 'git commit'],
+    0: ['git config', 'git init', 'ls -a', 'git add', 'git commit'],
     1: ['git status', 'git commit', 'git log'],
     2: ['git switch', 'git merge'],
     3: ['git merge', 'cat app.js', 'nano app.js', 'git commit'],
@@ -97,6 +107,14 @@ function run() {
       );
     });
   });
+
+  // Narrative continuity checks.
+  for (let level = 0; level < lessons.length; level++) {
+    assert(arc.lessonLore[level], `missing lesson lore for level ${level + 1}`);
+    assert(arc.lessonLore[level].guardian, `missing guardian for level ${level + 1}`);
+  }
+  assert(/github/i.test(lessons[8].content) && /gitlab/i.test(lessons[8].content) && /gitea/i.test(lessons[8].content), 'level 9 content should conceptually introduce hosted repository platforms');
+  assert(/pull requests/i.test(lessons[9].content) && /gitlab/i.test(lessons[9].content), 'level 10 content should explicitly tease the follow-up course');
 
   // Regression check for "status-only completes level 5" loophole.
   {

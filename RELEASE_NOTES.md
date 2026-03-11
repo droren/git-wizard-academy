@@ -1,5 +1,37 @@
 # Release Notes
 
+## 2026-03-11 - Narrative Campaign and Cinematic Intro Pass
+
+### Added
+
+- Cinematic opening crawl with:
+  - replay support
+  - `Esc` skip
+  - automatic replay after `Reset Game`
+- Mentor character (`Archivist Vega`) and per-level guardian/boss story metadata
+- Lesson intro cadence guidance that separates environment-wide, repository-wide, and branch/workflow-specific habits
+- Virtual `~/.gitconfig` mirror for course-wide global settings and alias discovery
+- Story-driven guide briefing block in level intro playback modal
+- Chapter transition lore in level completion modal
+- Explicit late-game teaser hooks for a future GitHub/GitLab/Gitea follow-up course
+
+### Changed
+
+- Story arc upgraded from light flavor text to a full chapter framework across all 10 levels
+- Guardians and bosses now use more characterful humanoid presentation
+- Level 9-10 content now conceptually frames remotes, repository hosting, review workflows, and change management as the next learning frontier
+- `Replay Intro` is now available as a lightweight icon-plus-text control without adding heavy permanent UI chrome
+- `Reset Game` now preserves global Git environment settings instead of wiping them
+
+### Test Coverage
+
+- Expanded story arc validation for:
+  - mentor metadata
+  - guardian coverage across all chapters
+  - opening crawl content
+  - sequel teaser coverage in late-game chapters
+- Expanded curriculum integrity checks for hosted-platform teaser content in Levels 9-10
+
 ## 2026-03-03 - Major Realism, Progression, and UX Overhaul
 
 ### Added

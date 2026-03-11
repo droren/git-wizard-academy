@@ -12,6 +12,7 @@
                 { cmd: 'git config --global user.name "Arc Hero"', out: '' },
                 { cmd: 'git config --global user.email "hero@academy.dev"', out: '' },
                 { cmd: 'git init', out: 'Initialized empty Git repository in .git/' },
+                { cmd: 'ls -a', out: '.git/  .gitconfig  .gitignore  README.md' },
                 { cmd: 'echo "Hello World" > hello.txt', out: '' },
                 { cmd: 'git add hello.txt', out: 'Added 1 file(s)' },
                 { cmd: 'git commit -m "First commit"', out: '[main abc1234] First commit' }
@@ -100,7 +101,7 @@
         },
         8: {
             title: 'Reality Shaping Toolkit',
-            subtitle: 'Use submodules, hooks, and aliases to scale workflow.',
+            subtitle: 'Use submodules, hooks, and aliases to strengthen local craft before the hosted-platform frontier.',
             steps: [
                 { cmd: 'git submodule add https://example.com/lib.git libs/lib', out: "Submodule 'libs/lib' added" },
                 { cmd: 'echo "#!/bin/sh" > .git/hooks/pre-commit', out: '' },
@@ -110,7 +111,7 @@
         },
         9: {
             title: 'Grand Wizard Final Exam',
-            subtitle: 'Chain branching, rebase, cherry-pick, and merge to stabilize the world graph.',
+            subtitle: 'Chain branching, rebase, cherry-pick, and merge to stabilize the world graph before the remote frontier opens.',
             steps: [
                 { cmd: 'git switch -c feature', out: "Switched to a new branch 'feature'" },
                 { cmd: 'git commit -m "Feature timeline"', out: '[feature ...] Feature timeline' },

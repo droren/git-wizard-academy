@@ -91,7 +91,9 @@
             function (state) {
                 const visited = (state.flags && state.flags.visitedBranches) || {};
                 const count = Object.keys(visited).length;
-                return count >= 2;
+                const startBranch = state.levelContext && state.levelContext.startBranchName;
+                const returnedToStart = !!(startBranch && visited[startBranch] && count >= 2 && state.flags && state.flags.explicitBranchSwitches >= 2);
+                return returnedToStart;
             },
             function (state) {
                 const byBranch = (state.flags && state.flags.commitsByBranchSinceLevelStart) || {};

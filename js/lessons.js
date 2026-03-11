@@ -51,6 +51,11 @@ echo "My Project" > README.md
 ls              # List files
 cat hello.txt    # Show file content</code></pre>
 
+            <h3>Seeing Hidden Files</h3>
+            <pre><code>ls -a
+ls -la</code></pre>
+            <p>Use this when you want to inspect hidden files such as <code>.git</code>, <code>.gitignore</code>, or your course-wide <code>.gitconfig</code>.</p>
+
             <div class="objective-box">
                 <div class="objective-header">
                     <span class="objective-icon">🎯</span>
@@ -254,10 +259,10 @@ git commit -m "Resolve merge conflict"</code></pre>
         },
         conflictScenario: true,
         boss: {
-            name: "The Merge Monster",
-            avatar: "👹",
+            name: "Captain Mira Rift",
+            avatar: "🧙‍♂️",
             hp: 100,
-            dialogue: "You cannot defeat me! My conflicts are endless!",
+            dialogue: "Conflicts do not fear you yet, apprentice. Read the markers, choose carefully, and prove they should.",
             hint: "Find the conflict markers, choose the right changes, then add and commit!"
         }
     },
@@ -511,10 +516,10 @@ git bisect reset</code></pre>
             'bugfix.js': 'console.log(\"critical fix\");\n'
         },
         boss: {
-            name: "Cherry-Pick Master",
+            name: "Marshal Quill",
             avatar: "🎯",
             hp: 100,
-            dialogue: "Pick my commits correctly, or your history will be a mess!",
+            dialogue: "Precision decides whether incidents last minutes or days. Pick only the fix that belongs.",
             hint: "Find the bugfix commit on the hotfix branch and cherry-pick it to main!"
         }
     },
@@ -545,6 +550,10 @@ git bisect reset</code></pre>
             <pre><code>git config --global alias.co checkout
 git config --global alias.br branch
 git config --global alias.st status</code></pre>
+
+            <h3>Beyond Local Git: The Next Frontier</h3>
+            <p>Everything in this academy has focused on mastering Git locally first. That is intentional. Teams only benefit from GitHub, GitLab, or Gitea when their local habits are already disciplined.</p>
+            <p>Hosted repository platforms add review, approvals, issue links, pipelines, and collaboration rituals on top of Git. In the follow-up course, you will learn how local branches, commits, tags, and hooks connect to remote teamwork and change management.</p>
 
             <div class="objective-box">
                 <div class="objective-header">
@@ -607,6 +616,10 @@ git config --global alias.st status</code></pre>
                 <li>✅ Cherry-picking and bisecting</li>
             </ul>
 
+            <h3>The Gate Beyond the Academy</h3>
+            <p>Passing this exam proves that you can manage history locally with confidence. The next campaign is different: not just preserving truth in your own repository, but managing review, approvals, remotes, and platform workflows across whole teams.</p>
+            <p>That future course will step into GitHub, GitLab, and Gitea concepts: merge requests, pull requests, code review, CI pipelines, protected branches, and the human side of repository stewardship.</p>
+
             <div class="objective-box">
                 <div class="objective-header">
                     <span class="objective-icon">🎯</span>
@@ -635,6 +648,19 @@ git config --global alias.st status</code></pre>
         }
     }
 ];
+
+lessons.forEach(function(lesson, index) {
+    if (lesson.repoSetup) return;
+    lesson.repoSetup = index === 0
+        ? {
+            mode: 'init-required',
+            summary: 'Repository Setup: this level begins without a Git repository. You are expected to run `git init` yourself.'
+        }
+        : {
+            mode: 'prepared',
+            summary: 'Repository Setup: this level already includes a prepared repository so you can focus on the lesson objective instead of reinitializing.'
+        };
+});
 
 // Export for use in other modules
 window.lessons = lessons;

@@ -7,6 +7,8 @@ It blends realistic Git command simulation, guided lessons, boss challenges, and
 
 - Realistic in-browser Git simulation (repo state, refs, commits, index, status, branches, merge conflicts, rebase/cherry-pick/reset/stash flows)
 - Fantasy/sci-fi narrative arc woven through all 10 levels
+- Cinematic opening crawl with replay support and `Esc` skip
+- Mentor-driven campaign framing plus per-chapter guardians/bosses
 - XP, achievements, streaks, boss encounters, level objectives
 - Persistent state using `localStorage` (lesson progress, repo state, config)
 - ANSI-rendered terminal output with `xterm.js` support
@@ -23,7 +25,7 @@ It blends realistic Git command simulation, guided lessons, boss challenges, and
 - `js/shell-commands.js`: shell command simulation (`ls`, `cat`, `echo`, `nano`, etc.)
 - `js/ui.js`: terminal input/output, guide playback, hints, UI orchestration
 - `js/lessons.js`: lesson content, objectives, initial scenario setup
-- `js/story-arc.js`: narrative context and mission framing
+- `js/story-arc.js`: prologue crawl, mentor/guardian cast, chapter framing, sequel hooks
 - `js/objective-rules.js`: strict objective validation logic
 - `js/file-system.js`: in-browser virtual filesystem + persistence
 - `js/storage-stores.js`: config/repo/lesson stores
@@ -61,7 +63,9 @@ This executes syntax checks and core suites:
 ## Gameplay Notes
 
 - `Reset Level` resets current level scenario/workspace/objectives.
-- `Reset Game` clears all progress and starts from level 1.
+- `Reset Game` clears campaign progress, restarts from level 1, replays the cinematic intro, and keeps your global Git environment intact.
+- `Replay Intro` reopens the opening crawl without cluttering the main interface.
+- Global `git config --global ...` settings are mirrored into a virtual `~/.gitconfig` and persist across the whole course.
 - Merge Monster (Level 4) is designed as a real conflict-marker workflow:
   1. trigger merge conflict
   2. inspect markers with `cat`/`nano`
@@ -74,6 +78,7 @@ This executes syntax checks and core suites:
 - Prevent objective bypasses with strict state-based validation.
 - Keep progression fun and thematic without sacrificing learning accuracy.
 - Prepare learners for real-world workflows (branching, conflict resolution, history analysis).
+- Build a bridge from local Git mastery toward a future hosted-repository course instead of overloading the fundamentals game.
 
 ## Future Enhancements
 

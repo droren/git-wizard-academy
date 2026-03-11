@@ -31,13 +31,60 @@ currentLevel: 0,
         staged: []
     },
     commandHistory: [],
-    nanoFile: null
+    nanoFile: null,
+    introSeen: false,
+    levelReadyToProceed: false
     };
 }
 
 window.gameState = createDefaultGameState();
 
+function buildGlobalGitConfigText(config) {
+    const cfg = config || {};
+    const keys = Object.keys(cfg).sort();
+    if (!keys.length) {
+        return '# Git Wizard Academy global config\n# Add entries with git config --global <key> <value>\n';
+    }
+
+    const grouped = {};
+    keys.forEach(function(key) {
+        const parts = key.split('.');
+        const section = parts[0] || 'core';
+        const name = parts.slice(1).join('.') || key;
+        grouped[section] = grouped[section] || [];
+        grouped[section].push({ name: name, value: cfg[key] });
+    });
+
+    return Object.keys(grouped).sort().map(function(section) {
+        const lines = ['[' + section + ']'];
+        grouped[section].sort(function(a, b) {
+            return a.name.localeCompare(b.name);
+        }).forEach(function(entry) {
+            lines.push('\t' + entry.name + ' = ' + entry.value);
+        });
+        return lines.join('\n');
+    }).join('\n\n') + '\n';
+}
+
 const gameEngine = {
+    getRepoSetupMessage: function(levelIndex) {
+        const lesson = (window.lessons && window.lessons[levelIndex]) ? window.lessons[levelIndex] : null;
+        if (!lesson) return '';
+        const setup = lesson.repoSetup || {};
+        if (setup.summary) return setup.summary;
+        if (setup.mode === 'init-required') return 'This level starts without a repository. Run `git init` yourself.';
+        return 'This level starts with a prepared repository. You do not need to run `git init` unless the lesson says so.';
+    },
+
+    updateObjectivesPanelState: function() {
+        const proceedBtn = document.getElementById('proceedLevelBtn');
+        const repoNote = document.getElementById('repoSetupNote');
+        if (repoNote) repoNote.textContent = this.getRepoSetupMessage(window.gameState.currentLevel);
+        if (proceedBtn) {
+            proceedBtn.style.display = window.gameState.levelReadyToProceed ? 'inline-flex' : 'none';
+        }
+    },
+
     // Initialize game
     init: function() {
         // Ensure FS is loaded (persisted separately)
@@ -75,6 +122,9 @@ const gameEngine = {
         if (!Array.isArray(window.gameState.achievements)) window.gameState.achievements = [];
         if (!Array.isArray(window.gameState.commandHistory)) window.gameState.commandHistory = [];
         if (!window.gameState.flags) window.gameState.flags = {};
+        if (typeof window.gameState.introSeen !== 'boolean') window.gameState.introSeen = false;
+
+        this.syncGlobalEnvironmentConfig();
 
         // Daily streak (very simple: keep streak if played yesterday; reset if gap)
         const today = new Date();
@@ -100,15 +150,9 @@ const gameEngine = {
 
         if (hasRestorableObjectives) {
             // Resume exactly where the learner left off (do not reset FS/git state).
-            const lessonContent = document.getElementById('lessonContent');
-            if (lessonContent) {
-                let storyHtml = '';
-                if (window.storyArc && window.storyArc.renderStoryPanel) {
-                    storyHtml = window.storyArc.renderStoryPanel(levelIndex);
-                }
-                lessonContent.innerHTML = (storyHtml || '') + lesson.content;
-            }
+            this.renderLessonContent(levelIndex);
             this.renderObjectives();
+            this.updateObjectivesPanelState();
             this.renderLevelNav();
             this.updateStats();
             this.renderAchievements();
@@ -122,6 +166,28 @@ const gameEngine = {
             this.renderAchievements();
             this.saveGame();
         }
+    },
+
+    renderLessonContent: function(levelIndex) {
+        const lesson = (window.lessons && window.lessons[levelIndex]) ? window.lessons[levelIndex] : null;
+        const lessonContent = document.getElementById('lessonContent');
+        if (!lesson || !lessonContent) return;
+
+        let storyHtml = '';
+        if (window.storyArc && window.storyArc.renderStoryPanel) {
+            storyHtml = window.storyArc.renderStoryPanel(levelIndex);
+        }
+        const contentWithoutObjectives = String(lesson.content || '')
+            .replace(/<div class="objective-box">[\s\S]*?<\/div>/g, '')
+            .replace(/\s+$/, '');
+        lessonContent.innerHTML = (storyHtml || '') + contentWithoutObjectives;
+    },
+
+    syncGlobalEnvironmentConfig: function() {
+        const fs = window.fileSystemModule;
+        if (!fs) return;
+        const cfg = window.configStore && window.configStore.load ? window.configStore.load() : {};
+        fs.writeFile('.gitconfig', buildGlobalGitConfigText(cfg));
     },
     
     // Add XP and check for level up
@@ -147,6 +213,7 @@ const gameEngine = {
         const modal = document.getElementById('levelCompleteModal');
         document.getElementById('modalTitle').textContent = '🎉 Level Up!';
         document.getElementById('modalSubtitle').textContent = 'You reached Rank ' + window.gameState.playerLevel + '!';
+        document.getElementById('modalLore').textContent = '';
         document.getElementById('modalXP').textContent = '+' + window.gameState.xpRequiredForLevel + ' XP';
         if (modal) modal.classList.add('show');
     },
@@ -227,6 +294,7 @@ const gameEngine = {
         if (window.fileSystemModule) {
             // New level = clean sandbox
             window.fileSystemModule.reset();
+            this.syncGlobalEnvironmentConfig();
 
             const fs = window.fileSystemModule;
             const seedFiles = (lesson.initialWorkspaceFiles && typeof lesson.initialWorkspaceFiles === 'object')
@@ -263,15 +331,98 @@ const gameEngine = {
                     window.gameState.gitState.trackedFiles[f] = window.gitCommands && window.gitCommands._hash ? window.gitCommands._hash(fs.readFile(f)?.content || '') : true;
                 });
 
-                // Seed commits list (normalize dates)
-                window.gameState.gitState.commits = (lesson.initialGitState.commits || []).map((c, idx) => ({
-                    id: 'seed' + (idx+1),
-                    message: c.message || 'Seed commit',
-                    author: c.author || 'You',
-                    files: c.files || [],
-                    branch: lesson.initialGitState.currentBranch || 'main',
-                    date: c.date ? new Date(c.date) : new Date()
-                }));
+                // Seed realistic commit metadata, snapshots, and refs for prepared repositories.
+                const hash = (window.gitCommands && window.gitCommands._hash)
+                    ? window.gitCommands._hash
+                    : function (s) {
+                        s = String(s || '');
+                        let h = 5381;
+                        for (let i = 0; i < s.length; i++) h = (((h << 5) + h) + s.charCodeAt(i)) >>> 0;
+                        return h.toString(16);
+                      };
+
+                const shaFromSeed = function(seed) {
+                    let hex = hash(seed);
+                    while (hex.length < 40) hex += hash(hex + ':' + seed + ':' + hex.length);
+                    return hex.slice(0, 40);
+                };
+
+                const snapshotsByBranch = {};
+                const headsByBranch = {};
+                const commitBySha = {};
+                const seededCommits = [];
+                const initialBranches = lesson.initialGitState.branches ? [...lesson.initialGitState.branches] : ['main'];
+                initialBranches.forEach(function(branch) {
+                    snapshotsByBranch[branch] = {};
+                    headsByBranch[branch] = null;
+                });
+
+                (lesson.initialGitState.commits || []).forEach(function(c, idx) {
+                    const branchName = c.branch || lesson.initialGitState.currentBranch || 'main';
+                    const parentSha = headsByBranch[branchName] || null;
+                    const parentSnapshot = parentSha && commitBySha[parentSha]
+                        ? JSON.parse(JSON.stringify(commitBySha[parentSha].snapshot || {}))
+                        : {};
+                    const nextSnapshot = JSON.parse(JSON.stringify(parentSnapshot));
+
+                    (c.files || []).forEach(function(fileName) {
+                        const existing = fs.readFile(fileName);
+                        nextSnapshot[fileName] = existing ? String(existing.content || '') : '';
+                    });
+
+                    const tree = {};
+                    Object.keys(nextSnapshot).forEach(function(fileName) {
+                        tree[fileName] = hash(nextSnapshot[fileName]);
+                    });
+
+                    const author = c.author || 'You';
+                    const authorMatch = String(author).match(/^(.*?)(?:\s*<([^>]+)>)?$/);
+                    const authorName = authorMatch && authorMatch[1] ? authorMatch[1].trim() : 'You';
+                    const authorEmail = authorMatch && authorMatch[2] ? authorMatch[2].trim() : 'you@example.com';
+                    const timestamp = c.date ? new Date(c.date).toISOString() : new Date(Date.now() + idx * 1000).toISOString();
+                    const sha = shaFromSeed(branchName + ':' + idx + ':' + (c.message || 'Seed commit') + ':' + JSON.stringify(tree) + ':' + parentSha);
+
+                    const commit = {
+                        id: 'seed' + (idx + 1),
+                        sha: sha,
+                        shortSha: sha.slice(0, 7),
+                        message: c.message || 'Seed commit',
+                        author: authorName + ' <' + authorEmail + '>',
+                        authorName: authorName,
+                        authorEmail: authorEmail,
+                        files: c.files || [],
+                        branch: branchName,
+                        date: timestamp,
+                        timestamp: timestamp,
+                        parent: parentSha,
+                        parents: parentSha ? [parentSha] : [],
+                        tree: tree,
+                        snapshot: nextSnapshot,
+                        parentSnapshot: parentSnapshot
+                    };
+
+                    snapshotsByBranch[branchName] = JSON.parse(JSON.stringify(nextSnapshot));
+                    headsByBranch[branchName] = sha;
+                    commitBySha[sha] = commit;
+                    seededCommits.push(commit);
+                });
+
+                window.gameState.gitState.commits = seededCommits;
+                window.gameState.gitState.commitBySha = commitBySha;
+                window.gameState.gitState.refs = Object.assign({}, headsByBranch);
+                window.gameState.gitState.headRef = 'refs/heads/' + (lesson.initialGitState.currentBranch || 'main');
+                window.gameState.gitState.head = headsByBranch[lesson.initialGitState.currentBranch || 'main'] || null;
+                window.gameState.gitState.index = {};
+                window.gameState.gitState.staged = [];
+                const currentSnapshot = snapshotsByBranch[lesson.initialGitState.currentBranch || 'main'] || {};
+                const currentTree = {};
+                Object.keys(currentSnapshot).forEach(function(fileName) {
+                    currentTree[fileName] = hash(currentSnapshot[fileName]);
+                });
+                window.gameState.gitState.trackedFiles = currentTree;
+                Object.keys(currentSnapshot).forEach(function(fileName) {
+                    fs.writeFile(fileName, currentSnapshot[fileName]);
+                });
 
                 // Special prepared conflict scenario for Merge Monster:
                 // pre-diverged main/feature branches that will conflict on merge.
@@ -390,12 +541,16 @@ const gameEngine = {
         }
         
         window.gameState.currentObjectives = lesson.objectives ? [...lesson.objectives] : [];
+        window.gameState.levelReadyToProceed = false;
         window.gameState.levelContext = {
             startCommitTotal: window.gameState.commits || 0,
             startMergeTotal: window.gameState.merges || 0,
             startBranchCount: (window.gameState.gitState && Array.isArray(window.gameState.gitState.branches))
                 ? window.gameState.gitState.branches.length
                 : 1,
+            startBranchName: (window.gameState.gitState && window.gameState.gitState.currentBranch)
+                ? window.gameState.gitState.currentBranch
+                : 'main',
             levelStartedAt: new Date().toISOString()
         };
         window.gameState.flags.visitedBranches = {};
@@ -404,16 +559,10 @@ const gameEngine = {
         }
         
         // Update UI
-        const lessonContent = document.getElementById('lessonContent');
-        if (lessonContent) {
-            let storyHtml = '';
-            if (window.storyArc && window.storyArc.renderStoryPanel) {
-                storyHtml = window.storyArc.renderStoryPanel(levelIndex);
-            }
-            lessonContent.innerHTML = (storyHtml || '') + lesson.content;
-        }
+        this.renderLessonContent(levelIndex);
         
         this.renderObjectives();
+        this.updateObjectivesPanelState();
         this.renderLevelNav();
         this.updateStats();
         
@@ -430,7 +579,9 @@ const gameEngine = {
             setTimeout(function() { gameEngine.startBossFight(lesson.boss); }, 1000);
         }
 
-        if (window.ui && window.ui.showLevelGuide) {
+        if (window.ui && window.ui.requestLevelGuide) {
+            setTimeout(function() { window.ui.requestLevelGuide(levelIndex); }, 220);
+        } else if (window.ui && window.ui.showLevelGuide) {
             setTimeout(function() { window.ui.showLevelGuide(levelIndex); }, 220);
         }
         if (window.ui && window.ui.playLevelFlare) {
@@ -442,7 +593,7 @@ const gameEngine = {
     // Render objectives for current level
     renderObjectives: function() {
         const lesson = window.lessons[window.gameState.currentLevel];
-        const objList = document.getElementById('objectiveList');
+        const objList = document.getElementById('currentObjectiveList');
         if (!objList) return;
         
         objList.innerHTML = '';
@@ -454,6 +605,7 @@ const gameEngine = {
                            '</div><span>' + obj + '</span>';
             objList.appendChild(li);
         });
+        this.updateObjectivesPanelState();
     },
     
     // Check if objectives are complete based on game state
@@ -542,17 +694,25 @@ const gameEngine = {
     // Check if level is complete
     checkLevelComplete: function() {
         const allComplete = window.gameState.currentObjectives.every(function(o) { return o === 'complete'; });
-        if (allComplete && window.gameState.completedLevels.indexOf(window.gameState.currentLevel) === -1) {
-            window.gameState.completedLevels.push(window.gameState.currentLevel);
-            
-            setTimeout(function() {
-                const lesson = window.lessons[window.gameState.currentLevel];
-                document.getElementById('modalTitle').textContent = lesson.icon + ' ' + lesson.title;
-                document.getElementById('modalSubtitle').textContent = lesson.description;
-                document.getElementById('modalXP').textContent = '+' + lesson.xpReward + ' XP';
-                document.getElementById('levelCompleteModal').classList.add('show');
-            }, 500);
+        if (!allComplete) {
+            window.gameState.levelReadyToProceed = false;
+            this.updateObjectivesPanelState();
+            return;
         }
+
+        window.gameState.levelReadyToProceed = true;
+        if (window.gameState.completedLevels.indexOf(window.gameState.currentLevel) === -1) {
+            window.gameState.completedLevels.push(window.gameState.currentLevel);
+        }
+
+        window.gameState.flags = window.gameState.flags || {};
+        if (!window.gameState.flags.levelCompletionCelebrated) {
+            window.gameState.flags.levelCompletionCelebrated = true;
+            if (window.ui && window.ui.celebrateObjectivesPanel) {
+                window.ui.celebrateObjectivesPanel();
+            }
+        }
+        this.updateObjectivesPanelState();
     },
     
     // Render level navigation
@@ -707,6 +867,9 @@ const gameEngine = {
     
     // Next level
     nextLevel: function() {
+        if (!window.gameState.levelReadyToProceed && window.gameState.currentLevel < window.lessons.length - 1) {
+            return;
+        }
         const modal = document.getElementById('levelCompleteModal');
         if (modal) modal.classList.remove('show');
         
@@ -741,8 +904,6 @@ const gameEngine = {
 
         if (window.lessonStore && window.lessonStore.clear) window.lessonStore.clear();
         if (window.repoStore && window.repoStore.clear) window.repoStore.clear();
-        if (window.configStore && window.configStore.save) window.configStore.save({});
-
         [
             'gwa_stash',
             'gwa_tag',
@@ -755,11 +916,16 @@ const gameEngine = {
         if (window.fileSystemModule && window.fileSystemModule.reset) window.fileSystemModule.reset();
 
         window.gameState = createDefaultGameState();
+        window.gameState.introSeen = false;
+        this.syncGlobalEnvironmentConfig();
         this.loadLevel(0);
         this.updateStats();
         this.renderAchievements();
         this.renderLevelNav();
         this.saveGame();
+        if (window.ui && window.ui.showIntro) {
+            window.ui.showIntro();
+        }
         return true;
     }
 };

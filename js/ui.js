@@ -16,6 +16,9 @@ const ui = {
     xterm: null,
     guideTimer: null,
     flareTimer: null,
+    introVisible: false,
+    introCloseTimer: null,
+    pendingGuideLevel: null,
     guidePlayState: { playing: false, step: 0, line: 0, steps: [] },
     resolverState: { file: '', ours: '', theirs: '', both: '', choice: 'both' },
     hintTimer: null,
@@ -143,12 +146,18 @@ const ui = {
         const terminalBody = document.getElementById('terminalOutput');
         const nanoTextarea = document.getElementById('nanoTextarea');
         const soundToggle = document.getElementById('soundToggle');
+        const replayIntroBtn = document.getElementById('replayIntroBtn');
+        const proceedLevelBtn = document.getElementById('proceedLevelBtn');
+        const toggleButtons = document.querySelectorAll('.icon-toggle[data-target]');
         const guidePlayPauseBtn = document.getElementById('guidePlayPauseBtn');
         const guideReplayBtn = document.getElementById('guideReplayBtn');
         const guideCloseBtn = document.getElementById('guideCloseBtn');
         const openResolverBtn = document.getElementById('openResolverBtn');
         const resolverCloseBtn = document.getElementById('resolverCloseBtn');
         const resolverStageBtn = document.getElementById('resolverStageBtn');
+        const introStartBtn = document.getElementById('introStartBtn');
+        const introSkipBtn = document.getElementById('introSkipBtn');
+        const introSkipLink = document.getElementById('introSkipLink');
 
         this.initTerminalAdapter();
         
@@ -172,32 +181,166 @@ const ui = {
         if (soundToggle) {
             soundToggle.addEventListener('click', this.toggleSound.bind(this));
         }
+        if (replayIntroBtn) replayIntroBtn.addEventListener('click', this.replayIntro.bind(this));
+        if (proceedLevelBtn) proceedLevelBtn.addEventListener('click', function() {
+            if (window.gameEngine) window.gameEngine.nextLevel();
+        });
+        toggleButtons.forEach((btn) => {
+            btn.addEventListener('click', this.togglePanelContent.bind(this));
+        });
         if (guidePlayPauseBtn) guidePlayPauseBtn.addEventListener('click', this.toggleGuidePlayback.bind(this));
         if (guideReplayBtn) guideReplayBtn.addEventListener('click', this.replayGuide.bind(this));
         if (guideCloseBtn) guideCloseBtn.addEventListener('click', this.closeGuide.bind(this));
         if (openResolverBtn) openResolverBtn.addEventListener('click', this.openConflictResolver.bind(this));
         if (resolverCloseBtn) resolverCloseBtn.addEventListener('click', this.closeConflictResolver.bind(this));
         if (resolverStageBtn) resolverStageBtn.addEventListener('click', this.saveAndStageResolver.bind(this));
+        if (introStartBtn) introStartBtn.addEventListener('click', this.closeIntro.bind(this));
+        if (introSkipBtn) introSkipBtn.addEventListener('click', this.skipIntro.bind(this));
+        if (introSkipLink) introSkipLink.addEventListener('click', this.skipIntro.bind(this));
         document.querySelectorAll('.resolver-pick').forEach((btn) => {
             btn.addEventListener('click', this.pickResolverChoice.bind(this));
         });
+        document.addEventListener('keydown', this.handleGlobalKeydown.bind(this));
         
         // Auto-scroll to bottom on new output
         this.observeTerminal();
         
-        // Show entrance animation
-        setTimeout(function() {
-            const overlay = document.getElementById('entranceOverlay');
-            if (overlay) {
-                overlay.classList.add('hidden');
-            }
-            // Focus terminal
-            if (terminalInput) {
-                terminalInput.focus();
-            }
-        }, 2000);
+        if (window.gameState && !window.gameState.introSeen) {
+            setTimeout(this.showIntro.bind(this), 120);
+        } else if (terminalInput) {
+            terminalInput.focus();
+        }
 
         this.updateConflictUI();
+    },
+
+    togglePanelContent: function(e) {
+        const btn = e.currentTarget;
+        const targetId = btn.getAttribute('data-target');
+        const content = targetId ? document.getElementById(targetId) : null;
+        if (!content || !btn) return;
+        const collapsed = content.classList.toggle('collapsed');
+        btn.textContent = collapsed ? '▸' : '▾';
+    },
+
+    celebrateObjectivesPanel: function() {
+        const panel = document.getElementById('objectivesPanelContent');
+        const fireworks = document.getElementById('objectivesFireworks');
+        if (!panel || !fireworks) return;
+
+        panel.classList.remove('ready');
+        fireworks.innerHTML = '';
+        panel.offsetHeight;
+        panel.classList.add('ready');
+
+        for (let i = 0; i < 14; i++) {
+            const spark = document.createElement('span');
+            spark.className = 'objective-spark';
+            spark.style.left = (8 + Math.random() * 84) + '%';
+            spark.style.top = (10 + Math.random() * 70) + '%';
+            spark.style.animationDelay = (Math.random() * 0.45) + 's';
+            spark.style.background = ['#7dff99', '#72b7ff', '#ffe066', '#f3b9ff'][i % 4];
+            fireworks.appendChild(spark);
+        }
+
+        setTimeout(function() {
+            fireworks.innerHTML = '';
+        }, 1800);
+    },
+
+    handleGlobalKeydown: function(e) {
+        if (e.key === 'Escape' && this.introVisible) {
+            e.preventDefault();
+            this.skipIntro();
+        }
+    },
+
+    populateIntro: function() {
+        const heading = document.getElementById('introCrawlHeading');
+        const title = document.getElementById('introCrawlTitle');
+        const body = document.getElementById('introCrawlBody');
+        const prologue = window.storyArc && window.storyArc.prologue ? window.storyArc.prologue : null;
+        if (!prologue) return;
+
+        if (heading) heading.textContent = prologue.crawlHeading || 'Episode 0';
+        if (title) title.textContent = prologue.title || 'Chronicle';
+        if (body) {
+            body.innerHTML = (prologue.crawlLines || []).map(function(line) {
+                return '<p>' + ui.escapeHtml(line) + '</p>';
+            }).join('');
+        }
+    },
+
+    showIntro: function() {
+        const overlay = document.getElementById('introOverlay');
+        const crawl = document.getElementById('introCrawl');
+        const guideOverlay = document.getElementById('levelGuideOverlay');
+        if (!overlay || !crawl) return;
+
+        if (guideOverlay) guideOverlay.classList.remove('show');
+        if (this.guideTimer) clearTimeout(this.guideTimer);
+        this.populateIntro();
+        this.introVisible = true;
+        overlay.classList.remove('hidden');
+        overlay.classList.add('show');
+        crawl.classList.remove('animating');
+        // Force reflow so replay restarts animation.
+        overlay.offsetHeight;
+        crawl.classList.add('animating');
+
+        if (this.introCloseTimer) clearTimeout(this.introCloseTimer);
+        this.introCloseTimer = setTimeout(this.closeIntro.bind(this), 37000);
+    },
+
+    replayIntro: function() {
+        this.showIntro();
+    },
+
+    skipIntro: function() {
+        this.closeIntro();
+    },
+
+    closeIntro: function() {
+        const overlay = document.getElementById('introOverlay');
+        const crawl = document.getElementById('introCrawl');
+        const terminalInput = document.getElementById('terminalInput');
+        if (this.introCloseTimer) {
+            clearTimeout(this.introCloseTimer);
+            this.introCloseTimer = null;
+        }
+
+        if (crawl) crawl.classList.remove('animating');
+        if (overlay) {
+            overlay.classList.remove('show');
+            overlay.classList.add('hidden');
+        }
+
+        this.introVisible = false;
+        if (window.gameState) {
+            window.gameState.introSeen = true;
+            if (window.gameEngine && window.gameEngine.saveGame) window.gameEngine.saveGame();
+        }
+
+        if (this.pendingGuideLevel !== null) {
+            const nextLevel = this.pendingGuideLevel;
+            this.pendingGuideLevel = null;
+            setTimeout(this.showLevelGuide.bind(this, nextLevel), 120);
+            return;
+        }
+
+        if (terminalInput) terminalInput.focus();
+    },
+
+    shouldDelayLevelGuide: function() {
+        return this.introVisible;
+    },
+
+    requestLevelGuide: function(levelIndex) {
+        if (this.shouldDelayLevelGuide()) {
+            this.pendingGuideLevel = levelIndex;
+            return;
+        }
+        this.showLevelGuide(levelIndex);
     },
 
     showLevelGuide: function(levelIndex) {
@@ -205,13 +348,27 @@ const ui = {
         const overlay = document.getElementById('levelGuideOverlay');
         const title = document.getElementById('guideTitle');
         const subtitle = document.getElementById('guideSubtitle');
+        const storyBeat = document.getElementById('guideStoryBeat');
         const terminal = document.getElementById('guideTerminal');
         const playPause = document.getElementById('guidePlayPauseBtn');
         if (!overlay || !terminal) return;
 
         const demo = window.lessonGuides.getDemo(levelIndex);
+        const brief = window.storyArc && window.storyArc.getGuideBrief ? window.storyArc.getGuideBrief(levelIndex) : null;
         title.textContent = demo.title || 'Mission Briefing';
         subtitle.textContent = demo.subtitle || '';
+        if (storyBeat) {
+            if (brief) {
+                storyBeat.innerHTML = '<strong>' + this.escapeHtml(brief.guardian.avatar + ' ' + brief.guardian.name) + '</strong>: ' +
+                    this.escapeHtml(brief.briefing) +
+                    '<br><br><strong>' + this.escapeHtml(brief.mentor.avatar + ' ' + brief.mentor.name) + '</strong>: ' +
+                    this.escapeHtml(brief.teaser) +
+                    (brief.cadence ? '<br><br><strong>Cadence:</strong> ' + this.escapeHtml(brief.cadence) : '') +
+                    (brief.bonus ? '<br><br><strong>Bonus:</strong> ' + this.escapeHtml(brief.bonus) : '');
+            } else {
+                storyBeat.textContent = '';
+            }
+        }
         terminal.innerHTML = '';
         this.guidePlayState = { playing: true, step: 0, line: 0, steps: demo.steps || [] };
         if (playPause) playPause.textContent = 'Pause';

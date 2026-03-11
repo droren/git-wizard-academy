@@ -54,10 +54,13 @@ function run() {
   {
     const s2 = baseState();
     s2.levelContext.startBranchCount = 1;
+    s2.levelContext.startBranchName = 'main';
     s2.gitState.branches = ['main', 'feature'];
     s2.flags.visitedBranches = { main: true };
     assert.strictEqual(evaluateObjective(2, 1, s2), false);
     s2.flags.visitedBranches.feature = true;
+    assert.strictEqual(evaluateObjective(2, 1, s2), false);
+    s2.flags.explicitBranchSwitches = 2;
     assert.strictEqual(evaluateObjective(2, 1, s2), true);
 
     s2.flags.commitsByBranchSinceLevelStart = { main: 2 };

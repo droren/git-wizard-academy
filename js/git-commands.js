@@ -635,6 +635,14 @@ gitCommands.config = function(args) {
         window.gameState.flags.configuredIdentity = true;
     }
 
+    if (window.gameEngine && window.gameEngine.syncGlobalEnvironmentConfig) {
+        window.gameEngine.syncGlobalEnvironmentConfig();
+    }
+    if (window.gameEngine && window.gameEngine.renderLessonContent) {
+        window.gameEngine.renderLessonContent(window.gameState.currentLevel || 0);
+        window.gameEngine.renderObjectives();
+    }
+
     return { success: true, message: '', xp: 10 };
 };
 
@@ -991,6 +999,7 @@ gitCommands.checkout = function(args) {
 
     const state = ensureGitState();
     const doubleDash = args.indexOf('--');
+    const createIndex = args.findIndex((a) => a === '-b');
 
     if (doubleDash !== -1) {
         const targets = args.slice(doubleDash + 1);
@@ -1011,6 +1020,25 @@ gitCommands.checkout = function(args) {
         return { success: true, message: 'Restored ' + targets.join(' '), xp: 10 };
     }
 
+    if (createIndex !== -1 && args[createIndex + 1]) {
+        const newBranch = args[createIndex + 1];
+        if (state.branches.includes(newBranch)) {
+            return { success: false, message: "fatal: A branch named '" + newBranch + "' already exists.", xp: 0 };
+        }
+
+        state.branches.push(newBranch);
+        state.refs[newBranch] = state.refs[state.currentBranch] || null;
+        checkoutBranchSnapshot(state, newBranch);
+        window.gameState.branches++;
+        window.gameState.flags = window.gameState.flags || {};
+        window.gameState.flags.branchCreated = true;
+        window.gameState.flags.visitedBranches = window.gameState.flags.visitedBranches || {};
+        window.gameState.flags.visitedBranches[newBranch] = true;
+        window.gameState.flags.explicitBranchSwitches = (window.gameState.flags.explicitBranchSwitches || 0) + 1;
+        window.gameState.flags.ranBranchFlow = true;
+        return { success: true, message: "Switched to a new branch '" + newBranch + "'", xp: 25 };
+    }
+
     const branch = args.find((a) => !a.startsWith('-'));
     if (!branch) return { success: true, message: 'usage: git checkout <branch-name>', xp: 0 };
     if (!state.branches.includes(branch)) {
@@ -1021,6 +1049,7 @@ gitCommands.checkout = function(args) {
     window.gameState.flags = window.gameState.flags || {};
     window.gameState.flags.visitedBranches = window.gameState.flags.visitedBranches || {};
     window.gameState.flags.visitedBranches[branch] = true;
+    window.gameState.flags.explicitBranchSwitches = (window.gameState.flags.explicitBranchSwitches || 0) + 1;
     window.gameState.flags.ranBranchFlow = true;
     if (args.some((a) => /^[a-f0-9]{7,40}$/.test(a))) {
         window.gameState.flags.recoveredCommit = true;
@@ -1050,6 +1079,7 @@ gitCommands.switch = function(args) {
         window.gameState.flags.branchCreated = true;
         window.gameState.flags.visitedBranches = window.gameState.flags.visitedBranches || {};
         window.gameState.flags.visitedBranches[newBranch] = true;
+        window.gameState.flags.explicitBranchSwitches = (window.gameState.flags.explicitBranchSwitches || 0) + 1;
         window.gameState.flags.ranBranchFlow = true;
         return { success: true, message: "Switched to a new branch '" + newBranch + "'", xp: 25 };
     }
@@ -1064,6 +1094,7 @@ gitCommands.switch = function(args) {
     window.gameState.flags = window.gameState.flags || {};
     window.gameState.flags.visitedBranches = window.gameState.flags.visitedBranches || {};
     window.gameState.flags.visitedBranches[branch] = true;
+    window.gameState.flags.explicitBranchSwitches = (window.gameState.flags.explicitBranchSwitches || 0) + 1;
     window.gameState.flags.ranBranchFlow = true;
     return { success: true, message: "Switched to branch '" + branch + "'", xp: 20 };
 };

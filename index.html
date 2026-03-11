@@ -13,9 +13,34 @@
         🔊
     </button>
 
-    <!-- Entrance Overlay -->
-    <div class="entrance-overlay" id="entranceOverlay">
-        <div class="entrance-logo">⚡ GIT WIZARD ACADEMY ⚡</div>
+    <!-- Cinematic Intro -->
+    <div class="intro-overlay" id="introOverlay">
+        <div class="intro-stars"></div>
+        <div class="intro-vignette"></div>
+        <div class="intro-header">
+            <div class="intro-badge">⚡ Git Wizard Academy</div>
+            <button class="intro-skip-link" id="introSkipLink" type="button">⏭ Skip Intro</button>
+        </div>
+        <div class="intro-stage">
+            <div class="intro-logo-block">
+                <div class="intro-logo">Git Wizard Academy</div>
+                <div class="intro-tagline">A hybrid fantasy/sci-fi journey through version control</div>
+            </div>
+            <div class="intro-crawl-frame">
+                <div class="intro-crawl" id="introCrawl">
+                    <div class="intro-crawl-inner">
+                        <div class="intro-kicker" id="introCrawlHeading">Episode 0</div>
+                        <div class="intro-title" id="introCrawlTitle">Chronicle of Broken Time</div>
+                        <div class="intro-body" id="introCrawlBody"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="intro-controls">
+                <button class="btn btn-primary" id="introStartBtn" type="button">▶ Start Campaign</button>
+                <button class="btn btn-secondary" id="introSkipBtn" type="button">⏭ Skip Intro</button>
+                <div class="intro-hint">Press <kbd>Esc</kbd> to skip at any time.</div>
+            </div>
+        </div>
     </div>
     <div class="level-flare" id="levelFlare">
         <div class="flare-title" id="flareTitle">Level Loaded</div>
@@ -32,6 +57,10 @@
                 <div class="logo-text">Git <span>Wizard</span> Academy</div>
             </div>
             
+            <div class="header-actions">
+                <button class="panel-action-btn replay-intro-btn" id="replayIntroBtn" type="button">📽 Replay Intro</button>
+            </div>
+
             <div class="player-stats">
                 <div class="stat">
                     <div class="stat-value" id="currentLevel">1</div>
@@ -70,6 +99,7 @@
             <div class="panel-header">
                 <span>📖 Current Lesson</span>
                 <div class="panel-actions">
+                    <button class="panel-action-btn icon-toggle" data-target="lessonContent" type="button">▾</button>
                     <button class="panel-action-btn" onclick="window.gameEngine.resetLevel()">Reset Level</button>
                     <button class="panel-action-btn danger" onclick="window.gameEngine.resetGame()">Reset Game</button>
                 </div>
@@ -99,41 +129,63 @@
         </section>
 
         <!-- Game Panel -->
-        <aside class="panel">
-            <div class="panel-header">
-                🗺️ Level Map
-            </div>
-            <div class="panel-content">
-                <div class="level-nav" id="levelNav">
+        <aside class="game-sidebar">
+            <section class="panel sidebar-panel">
+                <div class="panel-header">
+                    <span>🎯 Current Objectives</span>
+                    <button class="btn btn-primary proceed-btn" id="proceedLevelBtn" type="button" style="display:none;">Proceed To Next Level</button>
+                    <button class="panel-action-btn icon-toggle" data-target="objectivesPanelContent" type="button">▾</button>
                 </div>
-                
-                <div class="command-stats">
-                    <div class="stat-card">
-                        <div class="stat-card-value" id="commitsCount">0</div>
-                        <div class="stat-card-label">Commits</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-card-value" id="branchesCount">0</div>
-                        <div class="stat-card-label">Branches</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-card-value" id="mergesCount">0</div>
-                        <div class="stat-card-label">Merges</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-card-value" id="conflictsCount">0</div>
-                        <div class="stat-card-label">Conflicts</div>
-                    </div>
+                <div class="panel-content objectives-panel-content" id="objectivesPanelContent">
+                    <div class="repo-setup-note" id="repoSetupNote"></div>
+                    <ul class="objective-list sidebar-objectives" id="currentObjectiveList">
+                    </ul>
+                    <div class="objectives-fireworks" id="objectivesFireworks"></div>
                 </div>
+            </section>
 
-                <div style="margin-top: 20px;">
-                    <div class="panel-header" style="margin: -20px -20px 15px; padding: 15px;">
-                        🏆 Achievements
+            <section class="panel sidebar-panel">
+                <div class="panel-header">
+                    <span>🗺️ Level Map</span>
+                    <button class="panel-action-btn icon-toggle" data-target="levelMapPanelContent" type="button">▾</button>
+                </div>
+                <div class="panel-content" id="levelMapPanelContent">
+                    <div class="level-map-window">
+                        <div class="level-nav" id="levelNav">
+                        </div>
                     </div>
+                    
+                    <div class="command-stats">
+                        <div class="stat-card">
+                            <div class="stat-card-value" id="commitsCount">0</div>
+                            <div class="stat-card-label">Commits</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-card-value" id="branchesCount">0</div>
+                            <div class="stat-card-label">Branches</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-card-value" id="mergesCount">0</div>
+                            <div class="stat-card-label">Merges</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-card-value" id="conflictsCount">0</div>
+                            <div class="stat-card-label">Conflicts</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel sidebar-panel">
+                <div class="panel-header">
+                    <span>🏆 Achievements</span>
+                    <button class="panel-action-btn icon-toggle" data-target="achievementsPanelContent" id="toggleAchievementsBtn" type="button">▾</button>
+                </div>
+                <div class="panel-content achievements-panel-content" id="achievementsPanelContent">
                     <div class="achievements-grid" id="achievementsGrid">
                     </div>
                 </div>
-            </div>
+            </section>
         </aside>
     </main>
 
@@ -143,6 +195,7 @@
             <div class="modal-icon">🎊</div>
             <div class="modal-title" id="modalTitle">Level Complete!</div>
             <div class="modal-subtitle" id="modalSubtitle">You've mastered this chapter!</div>
+            <div class="modal-lore" id="modalLore"></div>
             <div class="modal-xp" id="modalXP">+100 XP</div>
             <div class="modal-rewards" id="modalRewards">
             </div>
@@ -178,6 +231,7 @@
                 <div class="guide-title" id="guideTitle">Mission Briefing</div>
                 <div class="guide-subtitle" id="guideSubtitle">Watch a command walkthrough, then start the level.</div>
             </div>
+            <div class="guide-storybeat" id="guideStoryBeat"></div>
             <div class="guide-terminal" id="guideTerminal"></div>
             <div class="guide-actions">
                 <button class="btn btn-secondary" id="guidePlayPauseBtn">Pause</button>

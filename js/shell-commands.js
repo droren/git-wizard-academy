@@ -53,8 +53,11 @@ const shellCommands = {
     },
     
     ls: function(args) {
-        const long = args.includes('-l');
-        const all = args.includes('-a') || args.includes('--all');
+        const shortFlags = args
+            .filter(arg => /^-[^-]/.test(arg))
+            .join('');
+        const long = args.includes('-l') || shortFlags.includes('l');
+        const all = args.includes('-a') || args.includes('--all') || shortFlags.includes('a');
         const fs = window.fileSystemModule;
         
         // Determine path - . means current directory
