@@ -433,6 +433,9 @@ const gameEngine = {
         if (window.ui && window.ui.showLevelGuide) {
             setTimeout(function() { window.ui.showLevelGuide(levelIndex); }, 220);
         }
+        if (window.ui && window.ui.playLevelFlare) {
+            setTimeout(function() { window.ui.playLevelFlare(levelIndex); }, 80);
+        }
         
         this.saveGame();
     },    
@@ -473,8 +476,16 @@ const gameEngine = {
             var objLower = obj.toLowerCase();
             const flags = window.gameState.flags;
             let strictApplied = false;
+            const currentLevel = Number(window.gameState.currentLevel);
+            const campaignLevel = Number.isFinite(currentLevel) && currentLevel >= 0 && currentLevel <= 9;
 
-            if (window.objectiveRules && window.objectiveRules.evaluateObjective) {
+            if (campaignLevel) {
+                if (window.objectiveRules && window.objectiveRules.evaluateObjective) {
+                    const strict = window.objectiveRules.evaluateObjective(currentLevel, index, window.gameState);
+                    strictApplied = true;
+                    complete = strict === true;
+                }
+            } else if (window.objectiveRules && window.objectiveRules.evaluateObjective) {
                 const strict = window.objectiveRules.evaluateObjective(window.gameState.currentLevel, index, window.gameState);
                 if (strict !== null) {
                     strictApplied = true;

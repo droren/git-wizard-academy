@@ -15,6 +15,7 @@ const ui = {
     terminalMode: 'dom',
     xterm: null,
     guideTimer: null,
+    flareTimer: null,
     guidePlayState: { playing: false, step: 0, line: 0, steps: [] },
     resolverState: { file: '', ours: '', theirs: '', both: '', choice: 'both' },
     hintTimer: null,
@@ -279,6 +280,26 @@ const ui = {
         if (this.guideTimer) clearTimeout(this.guideTimer);
         const terminalInput = document.getElementById('terminalInput');
         if (terminalInput) terminalInput.focus();
+    },
+
+    playLevelFlare: function(levelIndex) {
+        const flare = document.getElementById('levelFlare');
+        const title = document.getElementById('flareTitle');
+        if (!flare || !title) return;
+
+        const lesson = (window.lessons && window.lessons[levelIndex]) ? window.lessons[levelIndex] : null;
+        title.textContent = lesson ? (lesson.icon + ' ' + lesson.title) : 'Level Loaded';
+
+        flare.classList.remove('show');
+        // Force reflow to restart animation on repeated level loads.
+        // eslint-disable-next-line no-unused-expressions
+        flare.offsetHeight;
+        flare.classList.add('show');
+
+        if (this.flareTimer) clearTimeout(this.flareTimer);
+        this.flareTimer = setTimeout(function() {
+            flare.classList.remove('show');
+        }, 2300);
     },
 
     showHintToast: function(text) {
