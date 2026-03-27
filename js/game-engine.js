@@ -197,11 +197,12 @@ const gameEngine = {
         
         // Level up check
         while (window.gameState.xpForCurrentLevel >= window.gameState.xpRequiredForLevel) {
-            window.gameState.xpForCurrentLevel -= window.gameState.xpRequiredForLevel;
+            const xpThreshold = window.gameState.xpRequiredForLevel;
+            window.gameState.xpForCurrentLevel -= xpThreshold;
             window.gameState.playerLevel += 1;
             // scale requirement gently
             window.gameState.xpRequiredForLevel = Math.round(window.gameState.xpRequiredForLevel * 1.12 + 25);
-            this.levelUp();
+            this.levelUp(xpThreshold);
         }
         
         this.updateStats();
@@ -209,12 +210,13 @@ const gameEngine = {
     },
     
     // Trigger level up
-    levelUp: function() {
+    levelUp: function(xpThreshold) {
         const modal = document.getElementById('levelCompleteModal');
         document.getElementById('modalTitle').textContent = '🎉 Level Up!';
         document.getElementById('modalSubtitle').textContent = 'You reached Rank ' + window.gameState.playerLevel + '!';
         document.getElementById('modalLore').textContent = '';
-        document.getElementById('modalXP').textContent = '+' + window.gameState.xpRequiredForLevel + ' XP';
+        const xpValue = Number.isFinite(xpThreshold) ? xpThreshold : window.gameState.xpRequiredForLevel;
+        document.getElementById('modalXP').textContent = '+' + xpValue + ' XP';
         if (modal) modal.classList.add('show');
     },
     

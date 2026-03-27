@@ -144,14 +144,29 @@ function listWorkingFiles() {
         return model.listWorkingFiles(window.fileSystemModule);
     }
     const fs = window.fileSystemModule;
-    const entries = fs.listDirectory('.');
     const out = {};
-    entries.forEach((e) => {
-        if (e.type !== 'file' || e.name === '.git') return;
-        const file = fs.readFile(e.name);
-        const content = file ? String(file.content || '') : '';
-        out[e.name] = { content, hash: hashContent(content) };
-    });
+    const joinPath = function(base, name) {
+        if (!base || base === '.') return name;
+        if (base.endsWith('/')) return base + name;
+        return base + '/' + name;
+    };
+    const walk = function(dirPath, relPrefix) {
+        const entries = fs.listDirectory(dirPath);
+        entries.forEach((e) => {
+            if (e.name === '.git') return;
+            const fullPath = joinPath(dirPath, e.name);
+            const relPath = relPrefix ? relPrefix + '/' + e.name : e.name;
+            if (e.type === 'directory') {
+                walk(fullPath, relPath);
+                return;
+            }
+            if (e.type !== 'file') return;
+            const file = fs.readFile(fullPath);
+            const content = file ? String(file.content || '') : '';
+            out[relPath] = { content, hash: hashContent(content) };
+        });
+    };
+    walk('.', '');
     return out;
 }
 
@@ -1688,7 +1703,7 @@ gitCommands.diff = function(args) {
     if (!isGitRepo()) {
         return { success: true, message: 'fatal: not a git repository', xp: 0 };
     }
-    return { success: true, message: 'No differences to show', xp: 5 };
+    return { success: true, message: 'No differences to show\n(note: diff is simulated in Git Wizard Academy)', xp: 5 };
 };
 
 gitCommands.show = function(args) {
@@ -1711,24 +1726,24 @@ gitCommands.show = function(args) {
 
 gitCommands.remote = function(args) {
     if (args.length === 0 || args.includes('-v')) {
-        return { success: true, message: 'origin  (fetch)\norigin  (push)', xp: 5 };
+        return { success: true, message: 'origin  (fetch)\norigin  (push)\n(note: remotes are simulated in Git Wizard Academy)', xp: 5 };
     }
     if (args.includes('add')) {
-        return { success: true, message: '', xp: 10 };
+        return { success: true, message: '(note: remotes are simulated in Git Wizard Academy)', xp: 10 };
     }
     return { success: true, message: '', xp: 0 };
 };
 
 gitCommands.fetch = function(args) {
-    return { success: true, message: 'From /\n   a8949f9..3b2a0c5  main     -> origin/main', xp: 15 };
+    return { success: true, message: 'From /\n   a8949f9..3b2a0c5  main     -> origin/main\n(note: fetch is simulated in Git Wizard Academy)', xp: 15 };
 };
 
 gitCommands.pull = function(args) {
-    return { success: true, message: 'Updating a8949f9..3b2a0c5\nFast-forward\n file.txt | 2 +-\n 1 file changed, 1 insertion(+), 1 deletion(-)', xp: 25 };
+    return { success: true, message: 'Updating a8949f9..3b2a0c5\nFast-forward\n file.txt | 2 +-\n 1 file changed, 1 insertion(+), 1 deletion(-)\n(note: pull is simulated in Git Wizard Academy)', xp: 25 };
 };
 
 gitCommands.push = function(args) {
-    return { success: true, message: 'To /repo.git\n   a8949f9..3b2a0c5  main -> main', xp: 25 };
+    return { success: true, message: 'To /repo.git\n   a8949f9..3b2a0c5  main -> main\n(note: push is simulated in Git Wizard Academy)', xp: 25 };
 };
 
 // Export

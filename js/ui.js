@@ -44,16 +44,16 @@ const ui = {
             }
 
             if (quote) {
+                current += ch;
                 if (ch === quote) {
                     quote = null;
-                } else {
-                    current += ch;
                 }
                 continue;
             }
 
             if (ch === '"' || ch === "'") {
                 quote = ch;
+                current += ch;
                 continue;
             }
 
@@ -70,6 +70,57 @@ const ui = {
 
         if (current) tokens.push(current);
         return tokens;
+    },
+
+    splitChainedCommands: function(input) {
+        const commands = [];
+        let current = '';
+        let quote = null;
+        let escape = false;
+
+        for (let i = 0; i < input.length; i++) {
+            const ch = input[i];
+
+            if (escape) {
+                current += ch;
+                escape = false;
+                continue;
+            }
+
+            if (ch === '\\') {
+                escape = true;
+                current += ch;
+                continue;
+            }
+
+            if (quote) {
+                if (ch === quote) {
+                    quote = null;
+                } else {
+                    current += ch;
+                }
+                continue;
+            }
+
+            if (ch === '"' || ch === "'") {
+                quote = ch;
+                continue;
+            }
+
+            if (ch === '&' && input[i + 1] === '&') {
+                const trimmed = current.trim();
+                if (trimmed) commands.push(trimmed);
+                current = '';
+                i += 1;
+                continue;
+            }
+
+            current += ch;
+        }
+
+        const trimmed = current.trim();
+        if (trimmed) commands.push(trimmed);
+        return commands.length ? commands : [input];
     },
 
     escapeHtml: function(str) {
@@ -871,6 +922,21 @@ const ui = {
     
     // Process any command
     processCommand: function(input) {
+        const chain = this.splitChainedCommands(input);
+        if (chain.length > 1) {
+            let lastResult = null;
+            for (let i = 0; i < chain.length; i++) {
+                const cmdInput = chain[i];
+                if (!cmdInput) continue;
+                lastResult = this.processSingleCommand(cmdInput);
+                if (!lastResult || lastResult.success === false) break;
+            }
+            return;
+        }
+        this.processSingleCommand(input);
+    },
+
+    processSingleCommand: function(input) {
         const terminalHistory = document.getElementById('terminalHistory');
         
         if (this.terminalMode === 'xterm' && this.xterm) {
@@ -956,6 +1022,7 @@ const ui = {
         
         // Save game
         window.gameEngine.saveGame();
+        return result;
     },
     
     // Print output to terminal
