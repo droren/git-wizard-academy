@@ -10,6 +10,7 @@
         repo: 'gwa_repo_state_v1',
         lesson: 'gwa_lesson_state_v1',
         certificates: 'gwa_certificate_state_v1',
+        liveGitHub: 'gwa_live_github_state_v1',
         legacyGame: 'gwa_gameState'
     };
 
@@ -92,10 +93,24 @@
         }
     };
 
+    const liveGitHubStore = {
+        load: function () {
+            return safeParse(localStorage.getItem(KEYS.liveGitHub) || '{}', {});
+        },
+        save: function (state) {
+            localStorage.setItem(KEYS.liveGitHub, JSON.stringify(state || {}));
+            return true;
+        },
+        clear: function () {
+            localStorage.removeItem(KEYS.liveGitHub);
+        }
+    };
+
     window.storageStores = { KEYS };
     window.configStore = configStore;
     window.repoStore = repoStore;
     window.lessonStore = lessonStore;
     window.certificateStore = certificateStore;
+    window.liveGitHubStore = liveGitHubStore;
     window._cloneState = clone;
 })();

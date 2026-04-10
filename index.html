@@ -60,6 +60,7 @@
             <div class="header-actions">
                 <button class="panel-action-btn replay-intro-btn" id="replayIntroBtn" type="button">📽 Replay Intro</button>
                 <button class="panel-action-btn export-repo-btn" id="exportRepoBtn" type="button">📦 Export Repo</button>
+                <button class="panel-action-btn live-github-btn" id="liveGitHubBtn" type="button">☁ Live GitHub</button>
             </div>
 
             <div class="player-stats">
@@ -295,6 +296,57 @@
             </div>
         </div>
     </div>
+    <div class="modal-overlay live-github-overlay" id="liveGitHubOverlay">
+        <div class="live-github-modal">
+            <div class="guide-header">
+                <div class="guide-title">Live GitHub Mode</div>
+                <div class="guide-subtitle">Connect a token, create or reuse a real repository, then push branches, open PRs, and merge with checks.</div>
+            </div>
+            <div class="live-github-status" id="liveGitHubStatus">Connect a GitHub token to start a live repository session.</div>
+            <div class="live-github-form">
+                <label class="form-field">
+                    <span>GitHub Token</span>
+                    <input id="liveGitHubToken" type="password" placeholder="ghp_... or fine-grained token">
+                </label>
+                <div class="live-github-grid">
+                    <label class="form-field">
+                        <span>Repository Name</span>
+                        <input id="liveGitHubRepoName" type="text" placeholder="git-wizard-academy-live">
+                    </label>
+                    <label class="form-field">
+                        <span>Repository Owner</span>
+                        <input id="liveGitHubOwner" type="text" placeholder="Leave blank for your account">
+                    </label>
+                </div>
+                <div class="live-github-grid">
+                    <label class="form-field">
+                        <span>Repo Description</span>
+                        <input id="liveGitHubDescription" type="text" placeholder="Git Wizard Academy live training repo">
+                    </label>
+                    <label class="form-field">
+                        <span>Branch to Push</span>
+                        <input id="liveGitHubBranch" type="text" placeholder="main">
+                    </label>
+                </div>
+                <div class="live-github-options">
+                    <label><input id="liveGitHubPrivate" type="checkbox"> Private repository</label>
+                    <label><input id="liveGitHubReuse" type="checkbox"> Reuse existing repository</label>
+                    <label><input id="liveGitHubInstallWorkflow" type="checkbox" checked> Install CI workflow</label>
+                </div>
+            </div>
+            <div class="guide-actions live-github-actions">
+                <button class="btn btn-primary" id="liveGitHubConnectBtn" type="button">Connect</button>
+                <button class="btn btn-secondary" id="liveGitHubCreateRepoBtn" type="button">Create / Select Repo</button>
+                <button class="btn btn-secondary" id="liveGitHubPushBtn" type="button">Push Live Repo</button>
+                <button class="btn btn-secondary" id="liveGitHubPullBtn" type="button">Pull / Fetch</button>
+                <button class="btn btn-secondary" id="liveGitHubInstallWorkflowBtn" type="button">Install CI</button>
+                <button class="btn btn-secondary" id="liveGitHubPrBtn" type="button">Create PR</button>
+                <button class="btn btn-secondary" id="liveGitHubReviewBtn" type="button">Run Review Bot</button>
+                <button class="btn btn-secondary" id="liveGitHubLogoutBtn" type="button">Logout / Reset</button>
+                <button class="btn btn-secondary" id="liveGitHubCloseBtn" type="button">Close</button>
+            </div>
+        </div>
+    </div>
     <div class="hint-toast" id="hintToast"></div>
 
     <!-- Achievement Popup -->
@@ -338,6 +390,7 @@
     <script src="js/game-engine.js"></script>
     <script src="js/ui.js"></script>
     <script src="js/export-bridge-client.js"></script>
+    <script src="js/live-github-client.js"></script>
     <script src="js/test-bridge.js"></script>
 </body>
 </html>

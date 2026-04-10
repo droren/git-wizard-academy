@@ -1844,7 +1844,20 @@ gitCommands.show = function(args) {
     };
 };
 
-gitCommands.remote = function(args) {
+gitCommands.remote = async function(args) {
+    if (window.gameEngine && window.gameEngine.isLiveGitHubConnected && window.gameEngine.isLiveGitHubConnected()) {
+        const live = window.gameEngine.getLiveGitHubState ? window.gameEngine.getLiveGitHubState() : {};
+        const repo = live.repo || {};
+        if (args.length === 0 || args.includes('-v')) {
+            const url = repo.clone_url || repo.html_url || 'https://github.com/';
+            return { success: true, message: 'origin  ' + url + ' (fetch)\norigin  ' + url + ' (push)\n(note: Live GitHub Mode is connected)', xp: 5 };
+        }
+        if (args.includes('add')) {
+            return { success: true, message: '(note: Live GitHub Mode manages the remote bridge for you)', xp: 10 };
+        }
+        return { success: true, message: '(note: Live GitHub Mode is connected)', xp: 0 };
+    }
+
     if (args.length === 0 || args.includes('-v')) {
         return { success: true, message: 'origin  (fetch)\norigin  (push)\n(note: remotes are simulated in Git Wizard Academy)', xp: 5 };
     }
@@ -1854,15 +1867,39 @@ gitCommands.remote = function(args) {
     return { success: true, message: '', xp: 0 };
 };
 
-gitCommands.fetch = function(args) {
+gitCommands.fetch = async function(args) {
+    if (window.gameEngine && window.gameEngine.isLiveGitHubConnected && window.gameEngine.isLiveGitHubConnected()) {
+        const result = await window.gameEngine.fetchLiveGitHubRepo();
+        return {
+            success: true,
+            message: (result && result.result && result.result.output ? result.result.output : 'Fetched remote refs.') + '\n(note: Live GitHub Mode fetched real GitHub refs)',
+            xp: 15
+        };
+    }
     return { success: true, message: 'From /\n   a8949f9..3b2a0c5  main     -> origin/main\n(note: fetch is simulated in Git Wizard Academy)', xp: 15 };
 };
 
-gitCommands.pull = function(args) {
+gitCommands.pull = async function(args) {
+    if (window.gameEngine && window.gameEngine.isLiveGitHubConnected && window.gameEngine.isLiveGitHubConnected()) {
+        const result = await window.gameEngine.pullLiveGitHubRepo();
+        return {
+            success: true,
+            message: (result && result.result && result.result.output ? result.result.output : 'Pulled from remote.') + '\n(note: Live GitHub Mode pulled from GitHub)',
+            xp: 25
+        };
+    }
     return { success: true, message: 'Updating a8949f9..3b2a0c5\nFast-forward\n file.txt | 2 +-\n 1 file changed, 1 insertion(+), 1 deletion(-)\n(note: pull is simulated in Git Wizard Academy)', xp: 25 };
 };
 
-gitCommands.push = function(args) {
+gitCommands.push = async function(args) {
+    if (window.gameEngine && window.gameEngine.isLiveGitHubConnected && window.gameEngine.isLiveGitHubConnected()) {
+        const result = await window.gameEngine.pushLiveGitHubRepo();
+        return {
+            success: true,
+            message: (result && result.result && result.result.repo ? ('Pushed to ' + result.result.repo.owner + '/' + result.result.repo.name) : 'Pushed to GitHub') + '\n(note: Live GitHub Mode pushed real branches and tags)',
+            xp: 25
+        };
+    }
     return { success: true, message: 'To /repo.git\n   a8949f9..3b2a0c5  main -> main\n(note: push is simulated in Git Wizard Academy)', xp: 25 };
 };
 
