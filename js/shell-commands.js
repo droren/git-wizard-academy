@@ -224,26 +224,26 @@ const shellCommands = {
             return { success: false, message: 'rm: missing operand' };
         }
         
-        paths.forEach(path => {
+        for (const path of paths) {
             // Handle . and .. specially
             if (path === '.' || path === '..') {
                 if (!force) {
                     return { success: false, message: `rm: cannot remove '${path}': Operation not permitted` };
                 }
-                return;
+                continue;
             }
             
             // Handle * to mean all files
             if (path === '*') {
                 const files = fs.listFiles('.');
                 files.forEach(f => fs.deletePath(f.name));
-                return;
+                continue;
             }
             
             if (!fs.deletePath(path) && !force) {
                 return { success: false, message: `rm: cannot remove '${path}': No such file or directory` };
             }
-        });
+        }
         
         return { success: true, message: '' };
     },
@@ -255,7 +255,7 @@ const shellCommands = {
         
         const fs = window.fileSystemModule;
         
-        args.forEach(path => {
+        for (const path of args) {
             // Don't allow removing . or ..
             if (path === '.' || path === '..') {
                 return { success: false, message: `rmdir: '${path}': Operation not permitted` };
@@ -271,7 +271,7 @@ const shellCommands = {
             } else {
                 return { success: false, message: `rmdir: ${path}: No such directory` };
             }
-        });
+        }
         
         return { success: true, message: '' };
     },

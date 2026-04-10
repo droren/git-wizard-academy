@@ -70,6 +70,7 @@ function run() {
   const lessons = extractLessons();
   const guides = extractGuides();
   const arc = extractStoryArc();
+  const tierNames = new Set();
 
   assert(Array.isArray(lessons) && lessons.length === 10, 'expected 10 lessons');
   assert(arc && arc.lessonLore, 'story arc should exist');
@@ -77,11 +78,15 @@ function run() {
   // Every objective in every campaign level must be backed by a strict rule.
   for (let level = 0; level < lessons.length; level++) {
     const lesson = lessons[level];
+    assert(lesson.tier && lesson.tierKey && lesson.tierBadge, `lesson ${level + 1} missing tier metadata`);
+    assert(Number.isInteger(lesson.tierLevelIndex), `lesson ${level + 1} missing tier progress index`);
+    tierNames.add(lesson.tier);
     for (let i = 0; i < lesson.objectives.length; i++) {
       const result = evaluateObjective(level, i, baseState());
       assert.notStrictEqual(result, null, `missing strict rule for level ${level + 1}, objective ${i + 1}`);
     }
   }
+  assert.strictEqual(tierNames.size, 5, 'expected five named tiers');
 
   // Make sure playback intros demonstrate core command families per level.
   const expected = {
@@ -107,6 +112,7 @@ function run() {
       );
     });
   });
+  assert.strictEqual(lessons.filter((lesson) => lesson.tierIsCapstone).length, 5, 'each tier should end with a capstone lesson');
 
   // Narrative continuity checks.
   for (let level = 0; level < lessons.length; level++) {

@@ -106,6 +106,7 @@ function ensureGitState() {
     if (!s.index || typeof s.index !== 'object') s.index = {};
     if (!Array.isArray(s.staged)) s.staged = [];
     if (!s.trackedFiles || typeof s.trackedFiles !== 'object') s.trackedFiles = {};
+    if (!s.tags || typeof s.tags !== 'object') s.tags = {};
 
     s.config = s.config || {};
     s.config.local = s.config.local || {};
@@ -144,14 +145,29 @@ function listWorkingFiles() {
         return model.listWorkingFiles(window.fileSystemModule);
     }
     const fs = window.fileSystemModule;
-    const entries = fs.listDirectory('.');
     const out = {};
-    entries.forEach((e) => {
-        if (e.type !== 'file' || e.name === '.git') return;
-        const file = fs.readFile(e.name);
-        const content = file ? String(file.content || '') : '';
-        out[e.name] = { content, hash: hashContent(content) };
-    });
+    const joinPath = function(base, name) {
+        if (!base || base === '.') return name;
+        if (base.endsWith('/')) return base + name;
+        return base + '/' + name;
+    };
+    const walk = function(dirPath, relPrefix) {
+        const entries = fs.listDirectory(dirPath);
+        entries.forEach((e) => {
+            if (e.name === '.git') return;
+            const fullPath = joinPath(dirPath, e.name);
+            const relPath = relPrefix ? relPrefix + '/' + e.name : e.name;
+            if (e.type === 'directory') {
+                walk(fullPath, relPath);
+                return;
+            }
+            if (e.type !== 'file') return;
+            const file = fs.readFile(fullPath);
+            const content = file ? String(file.content || '') : '';
+            out[relPath] = { content, hash: hashContent(content) };
+        });
+    };
+    walk('.', '');
     return out;
 }
 
@@ -165,6 +181,77 @@ function parseCommitMessage(args) {
     const mIdx = args.indexOf('-m');
     if (mIdx !== -1 && args[mIdx + 1]) return args[mIdx + 1];
     return 'Update';
+}
+
+function validateCommitMessage(message) {
+    const normalized = String(message || '').trim();
+    if (!normalized) {
+        return { ok: false, reason: 'error: commit message cannot be empty' };
+    }
+    if (normalized.length < 8) {
+        return { ok: false, reason: 'error: commit message is too short. Write a more descriptive message.' };
+    }
+    if (/^(update|wip|temp|test|fix|commit|changes?)$/i.test(normalized)) {
+        return { ok: false, reason: 'error: commit message is too vague. Use a descriptive summary.' };
+    }
+    return { ok: true, message: normalized };
+}
+
+function getHookPath(name) {
+    return '.git/hooks/' + name;
+}
+
+function readHookScript(name) {
+    const fs = window.fileSystemModule;
+    const path = getHookPath(name);
+    if (!fs || !fs.exists(path)) return '';
+    const file = fs.readFile(path);
+    return file ? String(file.content || '') : '';
+}
+
+function hasActiveHook(name) {
+    return !!readHookScript(name);
+}
+
+function commitMsgHookAllows(message) {
+    const hook = readHookScript('commit-msg');
+    if (!hook) return { ok: true };
+
+    const normalized = String(message || '').trim();
+    if (/exit\s+1|reject|fail/i.test(hook)) {
+        return { ok: false, reason: 'commit-msg hook rejected the commit message' };
+    }
+    if (/conventional/i.test(hook) || /feat:|fix:|docs:|chore:|refactor:|test:|ci:/i.test(hook)) {
+        const conventional = /^(feat|fix|docs|chore|refactor|test|ci|style|perf|build|revert)(\([\w.-]+\))?:\s+.+/.test(normalized);
+        if (!conventional) {
+            return { ok: false, reason: 'commit-msg hook rejected the message. Try a conventional commit like "feat: add login flow".' };
+        }
+    }
+    return { ok: true };
+}
+
+function preCommitHookAllows(state) {
+    const hook = readHookScript('pre-commit');
+    if (!hook) return { ok: true };
+
+    if (/exit\s+1|reject|fail/i.test(hook)) {
+        return { ok: false, reason: 'pre-commit hook rejected the commit' };
+    }
+
+    const staged = state.index || {};
+    const stagedNames = Object.keys(staged);
+    const dirtyContent = stagedNames.some((name) => {
+        const entry = staged[name];
+        if (!entry || entry.deleted) return false;
+        const content = String(entry.content || '');
+        return /TODO|FIXME|debugger;|console\.log\(/i.test(content);
+    });
+
+    if ((/lint|semgrep|test/i.test(hook)) && dirtyContent) {
+        return { ok: false, reason: 'pre-commit hook failed: lint/test checks found issues in staged files' };
+    }
+
+    return { ok: true };
 }
 
 function hasUnresolvedConflictMarkers(content) {
@@ -837,12 +924,33 @@ gitCommands.commit = function(args) {
     }
 
     const commitMessage = parseCommitMessage(args);
+    const messageCheck = validateCommitMessage(commitMessage);
+    if (!messageCheck.ok) {
+        window.gameState.flags = window.gameState.flags || {};
+        window.gameState.flags.commitMessageRejected = true;
+        return { success: false, message: messageCheck.reason, xp: 0 };
+    }
+
+    const preCommitCheck = preCommitHookAllows(state);
+    if (!preCommitCheck.ok) {
+        window.gameState.flags = window.gameState.flags || {};
+        window.gameState.flags.preCommitHookBlocked = true;
+        return { success: false, message: preCommitCheck.reason, xp: 0 };
+    }
+
+    const msgHookCheck = commitMsgHookAllows(commitMessage);
+    if (!msgHookCheck.ok) {
+        window.gameState.flags = window.gameState.flags || {};
+        window.gameState.flags.commitMsgHookBlocked = true;
+        return { success: false, message: msgHookCheck.reason, xp: 0 };
+    }
+
     const parents = state.mergeInProgress
         ? [state.refs[state.currentBranch], state.mergeHead].filter(Boolean)
         : undefined;
 
     const result = createCommit(state, {
-        message: commitMessage,
+        message: messageCheck.message,
         allowEmpty,
         parents
     });
@@ -873,6 +981,7 @@ gitCommands.commit = function(args) {
     window.gameState.commits++;
     window.gameState.flags = window.gameState.flags || {};
     window.gameState.flags.ranCommit = true;
+    window.gameState.flags.lastCommitMessageGood = true;
 
     if (window.gameEngine) {
         window.gameEngine.checkObjectives();
@@ -1377,14 +1486,40 @@ gitCommands.tag = function(args) {
     window.gameState.flags = window.gameState.flags || {};
     window.gameState.flags.ranTag = true;
 
+    state.tags = state.tags || {};
+
     const annotateIndex = args.findIndex((a) => a === '-a');
     const messageIndex = args.findIndex((a) => a === '-m');
+    const target = state.refs[state.currentBranch] || null;
+    const now = new Date().toISOString();
 
     if (annotateIndex !== -1 && messageIndex !== -1 && args[messageIndex + 1]) {
         window.gameState.flags.createdAnnotatedTag = true;
+        state.tags[tagName] = {
+            name: tagName,
+            target: target,
+            annotated: true,
+            message: args[messageIndex + 1],
+            tagger: {
+                name: readConfigValue(state, 'user.name') || 'You',
+                email: readConfigValue(state, 'user.email') || 'you@example.com',
+                date: now
+            }
+        };
         return { success: true, message: '[ tagged ' + tagName + ' ]', xp: 30 };
     }
 
+    state.tags[tagName] = {
+        name: tagName,
+        target: target,
+        annotated: false,
+        message: '',
+        tagger: {
+            name: readConfigValue(state, 'user.name') || 'You',
+            email: readConfigValue(state, 'user.email') || 'you@example.com',
+            date: now
+        }
+    };
     return { success: true, message: 'Tagged ' + tagName, xp: 25 };
 };
 
@@ -1688,7 +1823,7 @@ gitCommands.diff = function(args) {
     if (!isGitRepo()) {
         return { success: true, message: 'fatal: not a git repository', xp: 0 };
     }
-    return { success: true, message: 'No differences to show', xp: 5 };
+    return { success: true, message: 'No differences to show\n(note: diff is simulated in Git Wizard Academy)', xp: 5 };
 };
 
 gitCommands.show = function(args) {
@@ -1711,24 +1846,24 @@ gitCommands.show = function(args) {
 
 gitCommands.remote = function(args) {
     if (args.length === 0 || args.includes('-v')) {
-        return { success: true, message: 'origin  (fetch)\norigin  (push)', xp: 5 };
+        return { success: true, message: 'origin  (fetch)\norigin  (push)\n(note: remotes are simulated in Git Wizard Academy)', xp: 5 };
     }
     if (args.includes('add')) {
-        return { success: true, message: '', xp: 10 };
+        return { success: true, message: '(note: remotes are simulated in Git Wizard Academy)', xp: 10 };
     }
     return { success: true, message: '', xp: 0 };
 };
 
 gitCommands.fetch = function(args) {
-    return { success: true, message: 'From /\n   a8949f9..3b2a0c5  main     -> origin/main', xp: 15 };
+    return { success: true, message: 'From /\n   a8949f9..3b2a0c5  main     -> origin/main\n(note: fetch is simulated in Git Wizard Academy)', xp: 15 };
 };
 
 gitCommands.pull = function(args) {
-    return { success: true, message: 'Updating a8949f9..3b2a0c5\nFast-forward\n file.txt | 2 +-\n 1 file changed, 1 insertion(+), 1 deletion(-)', xp: 25 };
+    return { success: true, message: 'Updating a8949f9..3b2a0c5\nFast-forward\n file.txt | 2 +-\n 1 file changed, 1 insertion(+), 1 deletion(-)\n(note: pull is simulated in Git Wizard Academy)', xp: 25 };
 };
 
 gitCommands.push = function(args) {
-    return { success: true, message: 'To /repo.git\n   a8949f9..3b2a0c5  main -> main', xp: 25 };
+    return { success: true, message: 'To /repo.git\n   a8949f9..3b2a0c5  main -> main\n(note: push is simulated in Git Wizard Academy)', xp: 25 };
 };
 
 // Export

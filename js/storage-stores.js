@@ -9,6 +9,7 @@
         config: 'gwa_git_config_v1',
         repo: 'gwa_repo_state_v1',
         lesson: 'gwa_lesson_state_v1',
+        certificates: 'gwa_certificate_state_v1',
         legacyGame: 'gwa_gameState'
     };
 
@@ -78,9 +79,23 @@
         }
     };
 
+    const certificateStore = {
+        load: function () {
+            return safeParse(localStorage.getItem(KEYS.certificates) || '[]', []);
+        },
+        save: function (certificates) {
+            localStorage.setItem(KEYS.certificates, JSON.stringify(Array.isArray(certificates) ? certificates : []));
+            return true;
+        },
+        clear: function () {
+            localStorage.removeItem(KEYS.certificates);
+        }
+    };
+
     window.storageStores = { KEYS };
     window.configStore = configStore;
     window.repoStore = repoStore;
     window.lessonStore = lessonStore;
+    window.certificateStore = certificateStore;
     window._cloneState = clone;
 })();
