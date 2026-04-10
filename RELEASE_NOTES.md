@@ -1,5 +1,20 @@
 # Release Notes
 
+## 2026-04-10 - Live GitHub Mode Foundation
+
+### Added
+
+- Local Node bridge for GitHub API workflows in `js/live-github-server.js`
+- Browser client for connecting the SPA to a local GitHub bridge in `js/live-github-client.js`
+- `live-github.js` launcher for starting the bridge on `http://127.0.0.1:31556`
+- Live GitHub UI modal for token auth, repo creation, pushes, pulls, workflow installs, PRs, review bot actions, and logout/reset
+- Real git push/fetch/pull delegation from the simulator when Live GitHub Mode is connected
+- Regression tests for auth, repo provisioning, workflow install, PR creation, review bot, merge gating, and real local push to a bare remote mirror
+
+### Changed
+
+- Live GitHub sessions are persisted in local bridge storage and excluded from browser-visible lesson state
+
 ## 2026-04-10 - Real Repository Export Mode
 
 ### Added

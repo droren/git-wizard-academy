@@ -23,6 +23,13 @@ currentLevel: 0,
     conflicts: 0,
         achievements: [],
         certificates: [],
+        liveGitHub: {
+            connected: false,
+            authenticated: false,
+            repo: null,
+            user: null,
+            bridgeUrl: 'http://127.0.0.1:31556'
+        },
         tierProgress: {},
         completedLevels: [],
         currentObjectives: [],
@@ -92,6 +99,48 @@ const gameEngine = {
         if (proceedBtn) {
             proceedBtn.style.display = window.gameState.levelReadyToProceed ? 'inline-flex' : 'none';
         }
+    },
+
+    getLiveGitHubState: function() {
+        window.gameState.liveGitHub = window.gameState.liveGitHub || {
+            connected: false,
+            authenticated: false,
+            repo: null,
+            user: null,
+            bridgeUrl: 'http://127.0.0.1:31556'
+        };
+        return window.gameState.liveGitHub;
+    },
+
+    isLiveGitHubConnected: function() {
+        const state = this.getLiveGitHubState();
+        return !!(state && state.connected && state.authenticated);
+    },
+
+    getLiveGitHubPayload: function() {
+        const state = this.getLiveGitHubState();
+        return {
+            mode: 'live',
+            bridgeUrl: state.bridgeUrl || 'http://127.0.0.1:31556',
+            repoName: state.repo && state.repo.name ? state.repo.name : '',
+            owner: state.repo && state.repo.owner ? state.repo.owner : '',
+            gameState: window.gameState,
+            config: window.configStore && window.configStore.load ? window.configStore.load() : {}
+        };
+    },
+
+    updateLiveGitHubStatus: function(message) {
+        const status = document.getElementById('liveGitHubStatus');
+        if (status) status.textContent = message;
+    },
+
+    renderLiveGitHubState: function() {
+        const state = this.getLiveGitHubState();
+        const btn = document.getElementById('liveGitHubBtn');
+        const summary = state.connected && state.repo
+            ? '☁ Live GitHub: ' + (state.repo.owner || '') + '/' + (state.repo.name || '')
+            : '☁ Live GitHub';
+        if (btn) btn.textContent = summary;
     },
 
     getLessonTierInfo: function(levelIndex) {
@@ -209,6 +258,233 @@ const gameEngine = {
         if (overlay) overlay.classList.remove('show');
     },
 
+    openLiveGitHubModal: async function() {
+        const overlay = document.getElementById('liveGitHubOverlay');
+        const status = document.getElementById('liveGitHubStatus');
+        const state = this.getLiveGitHubState();
+        if (overlay) overlay.classList.add('show');
+        if (status) {
+            status.textContent = state.connected && state.repo
+                ? 'Connected to ' + (state.repo.owner || '') + '/' + (state.repo.name || '') + '. You can now create a repo, install CI, push branches, and manage PRs.'
+                : 'Connect a GitHub token to start a live repository session.';
+        }
+        const token = document.getElementById('liveGitHubToken');
+        const repoName = document.getElementById('liveGitHubRepoName');
+        const owner = document.getElementById('liveGitHubOwner');
+        const description = document.getElementById('liveGitHubDescription');
+        const branch = document.getElementById('liveGitHubBranch');
+        const priv = document.getElementById('liveGitHubPrivate');
+        const reuse = document.getElementById('liveGitHubReuse');
+        const workflow = document.getElementById('liveGitHubInstallWorkflow');
+        if (repoName && !repoName.value) repoName.value = state.repo && state.repo.name ? state.repo.name : 'git-wizard-academy-live';
+        if (branch && !branch.value) branch.value = state.repo && state.repo.default_branch ? state.repo.default_branch : 'main';
+        if (description && !description.value) description.value = 'Git Wizard Academy live training repo';
+        if (priv) priv.checked = !!(state.repo && state.repo.private);
+        if (reuse) reuse.checked = true;
+        if (workflow) workflow.checked = true;
+        if (owner && !owner.value && state.user && state.user.login) owner.value = state.user.login;
+
+        if (window.liveGitHubBridge && typeof window.liveGitHubBridge.session === 'function') {
+            try {
+                const session = await window.liveGitHubBridge.session();
+                if (session && session.authenticated) {
+                    this.syncLiveGitHubState({
+                        connected: true,
+                        authenticated: true,
+                        user: session.user || state.user || null,
+                        repo: session.repo || state.repo || null
+                    });
+                    this.updateLiveGitHubStatus('Bridge connected. Session is ready for real GitHub workflows.');
+                }
+            } catch (err) {
+                this.updateLiveGitHubStatus('Bridge not reachable at ' + (state.bridgeUrl || 'http://127.0.0.1:31556') + '. Run `node live-github.js` in a local terminal to enable Live GitHub Mode.');
+            }
+        }
+        this.renderLiveGitHubState();
+    },
+
+    closeLiveGitHubModal: function() {
+        const overlay = document.getElementById('liveGitHubOverlay');
+        if (overlay) overlay.classList.remove('show');
+    },
+
+    syncLiveGitHubState: function(patch) {
+        const current = this.getLiveGitHubState();
+        window.gameState.liveGitHub = Object.assign({}, current, patch || {});
+        if (window.liveGitHubStore && window.liveGitHubStore.save) {
+            window.liveGitHubStore.save(window.gameState.liveGitHub);
+        }
+        this.renderLiveGitHubState();
+        this.saveGame();
+    },
+
+    connectLiveGitHub: async function() {
+        if (!window.liveGitHubBridge || typeof window.liveGitHubBridge.connect !== 'function') {
+            throw new Error('Live GitHub bridge client is unavailable.');
+        }
+        const token = document.getElementById('liveGitHubToken');
+        const payload = {
+            token: token ? token.value.trim() : '',
+            apiBase: 'https://api.github.com',
+            webBase: 'https://github.com'
+        };
+        if (!payload.token) throw new Error('Paste a GitHub token first.');
+        const result = await window.liveGitHubBridge.connect(payload);
+        this.syncLiveGitHubState({
+            connected: true,
+            authenticated: true,
+            user: result.session && result.session.user ? result.session.user : null,
+            repo: result.session && result.session.repo ? result.session.repo : null
+        });
+        if (token) token.value = '';
+        this.updateLiveGitHubStatus('Connected as ' + ((result.session && result.session.user && result.session.user.login) || 'GitHub user') + '. You can now create a real repository and push live branches.');
+        return result;
+    },
+
+    logoutLiveGitHub: async function() {
+        if (window.liveGitHubBridge && typeof window.liveGitHubBridge.logout === 'function') {
+            try {
+                await window.liveGitHubBridge.logout();
+            } catch (err) {
+                // ignore bridge errors during logout
+            }
+        }
+        this.syncLiveGitHubState({
+            connected: false,
+            authenticated: false,
+            repo: null,
+            user: null
+        });
+        if (window.liveGitHubStore && window.liveGitHubStore.clear) {
+            window.liveGitHubStore.clear();
+        }
+        this.updateLiveGitHubStatus('Live GitHub session cleared.');
+    },
+
+    createLiveGitHubRepo: async function() {
+        if (!this.isLiveGitHubConnected()) throw new Error('Connect GitHub first.');
+        const payload = {
+            repoName: (document.getElementById('liveGitHubRepoName') || {}).value || '',
+            owner: (document.getElementById('liveGitHubOwner') || {}).value || '',
+            description: (document.getElementById('liveGitHubDescription') || {}).value || '',
+            private: !!((document.getElementById('liveGitHubPrivate') || {}).checked),
+            reuseExisting: !!((document.getElementById('liveGitHubReuse') || {}).checked),
+            gameState: window.gameState,
+            config: window.configStore && window.configStore.load ? window.configStore.load() : {}
+        };
+        const result = await window.liveGitHubBridge.createRepo(payload);
+        this.syncLiveGitHubState({
+            connected: true,
+            authenticated: true,
+            repo: result.repo
+        });
+        this.updateLiveGitHubStatus('Repository ready: ' + result.repo.owner + '/' + result.repo.name + '.');
+        return result;
+    },
+
+    installLiveGitHubWorkflow: async function() {
+        if (!this.isLiveGitHubConnected()) throw new Error('Connect GitHub first.');
+        const payload = {
+            gameState: window.gameState,
+            config: window.configStore && window.configStore.load ? window.configStore.load() : {}
+        };
+        const result = await window.liveGitHubBridge.installWorkflow(payload);
+        this.updateLiveGitHubStatus('Installed GitHub Actions workflow at ' + result.result.workflowPath + '.');
+        return result;
+    },
+
+    pushLiveGitHubRepo: async function() {
+        if (!this.isLiveGitHubConnected()) throw new Error('Connect GitHub first.');
+        const payload = {
+            gameState: window.gameState,
+            config: window.configStore && window.configStore.load ? window.configStore.load() : {},
+            repoName: this.getLiveGitHubState().repo && this.getLiveGitHubState().repo.name ? this.getLiveGitHubState().repo.name : '',
+            owner: this.getLiveGitHubState().repo && this.getLiveGitHubState().repo.owner ? this.getLiveGitHubState().repo.owner : '',
+            branchName: (document.getElementById('liveGitHubBranch') || {}).value || '',
+            includeWorkflow: !!((document.getElementById('liveGitHubInstallWorkflow') || {}).checked)
+        };
+        const result = await window.liveGitHubBridge.push(payload);
+        this.updateLiveGitHubStatus('Pushed branches and tags to ' + (result.result && result.result.repo ? (result.result.repo.owner + '/' + result.result.repo.name) : 'GitHub') + '.');
+        if (payload.includeWorkflow) {
+            try {
+                await window.liveGitHubBridge.installWorkflow(payload);
+                this.updateLiveGitHubStatus('Pushed to GitHub and installed the CI workflow.');
+            } catch (err) {
+                this.updateLiveGitHubStatus('Push succeeded, but workflow install failed: ' + err.message);
+            }
+        }
+        return result;
+    },
+
+    fetchLiveGitHubRepo: async function() {
+        if (!this.isLiveGitHubConnected()) throw new Error('Connect GitHub first.');
+        const payload = {
+            gameState: window.gameState,
+            config: window.configStore && window.configStore.load ? window.configStore.load() : {}
+        };
+        const result = await window.liveGitHubBridge.fetch(payload);
+        this.updateLiveGitHubStatus('Fetched remote refs from GitHub.');
+        return result;
+    },
+
+    pullLiveGitHubRepo: async function() {
+        if (!this.isLiveGitHubConnected()) throw new Error('Connect GitHub first.');
+        const payload = {
+            gameState: window.gameState,
+            config: window.configStore && window.configStore.load ? window.configStore.load() : {}
+        };
+        const result = await window.liveGitHubBridge.pull(payload);
+        this.updateLiveGitHubStatus('Pulled from GitHub. See terminal output for the real git pull result.');
+        return result;
+    },
+
+    createLiveGitHubPr: async function() {
+        if (!this.isLiveGitHubConnected()) throw new Error('Connect GitHub first.');
+        const payload = {
+            gameState: window.gameState,
+            config: window.configStore && window.configStore.load ? window.configStore.load() : {},
+            headBranch: (document.getElementById('liveGitHubBranch') || {}).value || '',
+            baseBranch: 'main',
+            prTitle: 'Git Wizard Academy lesson submission',
+            prBody: 'Created from Live GitHub Mode.'
+        };
+        const result = await window.liveGitHubBridge.createPullRequest(payload);
+        this.syncLiveGitHubState({
+            lastPr: result.pr
+        });
+        this.updateLiveGitHubStatus('Created PR #' + result.pr.number + '. Install CI, wait for checks, and merge when green.');
+        return result;
+    },
+
+    runLiveGitHubReviewBot: async function() {
+        if (!this.isLiveGitHubConnected()) throw new Error('Connect GitHub first.');
+        const state = this.getLiveGitHubState();
+        if (!state.lastPr || !state.lastPr.number) throw new Error('Create a pull request first.');
+        const result = await window.liveGitHubBridge.reviewBot({
+            gameState: window.gameState,
+            config: window.configStore && window.configStore.load ? window.configStore.load() : {},
+            pullNumber: state.lastPr.number
+        });
+        this.updateLiveGitHubStatus(result.result && result.result.problems && result.result.problems.length
+            ? 'Review bot left feedback on PR #' + state.lastPr.number + '.'
+            : 'Review bot found no blocking issues.');
+        return result;
+    },
+
+    mergeLiveGitHubPr: async function() {
+        if (!this.isLiveGitHubConnected()) throw new Error('Connect GitHub first.');
+        const state = this.getLiveGitHubState();
+        if (!state.lastPr || !state.lastPr.number) throw new Error('Create a pull request first.');
+        const result = await window.liveGitHubBridge.mergePullRequest({
+            gameState: window.gameState,
+            config: window.configStore && window.configStore.load ? window.configStore.load() : {},
+            pullNumber: state.lastPr.number,
+            mergeMethod: 'merge'
+        });
+        this.updateLiveGitHubStatus('Merged PR #' + state.lastPr.number + ' into the main branch.');
+        return result;
+    },
+
     buildExportPayload: function(mode) {
         return {
             mode: mode || 'clean',
@@ -225,6 +501,7 @@ const gameEngine = {
                 merges: window.gameState.merges,
                 conflicts: window.gameState.conflicts,
                 certificates: window.gameState.certificates,
+                liveGitHub: window.gameState.liveGitHub,
                 tierProgress: window.gameState.tierProgress,
                 flags: window.gameState.flags,
                 gitState: window.gameState.gitState
@@ -305,6 +582,16 @@ const gameEngine = {
         if (Array.isArray(savedCertificates)) {
             window.gameState.certificates = savedCertificates.slice();
         }
+        const savedLiveGitHub = window.liveGitHubStore && window.liveGitHubStore.load ? window.liveGitHubStore.load() : null;
+        if (savedLiveGitHub && typeof savedLiveGitHub === 'object') {
+            window.gameState.liveGitHub = Object.assign({
+                connected: false,
+                authenticated: false,
+                repo: null,
+                user: null,
+                bridgeUrl: 'http://127.0.0.1:31556'
+            }, savedLiveGitHub);
+        }
 
         // Back-compat defaults
         if (!Number.isFinite(window.gameState.playerLevel) || window.gameState.playerLevel < 1) window.gameState.playerLevel = 1;
@@ -351,6 +638,7 @@ const gameEngine = {
             this.updateStats();
             this.renderAchievements();
             this.renderCertificateButton();
+            this.renderLiveGitHubState();
             this.saveGame();
         } else {
             // Fresh load/new learner path.
@@ -359,6 +647,7 @@ const gameEngine = {
             this.loadLevel(levelIndex);
             this.updateStats();
             this.renderAchievements();
+            this.renderLiveGitHubState();
             this.saveGame();
         }
     },
@@ -761,6 +1050,7 @@ const gameEngine = {
         this.renderObjectives();
         this.updateObjectivesPanelState();
         this.renderCertificateButton();
+        this.renderLiveGitHubState();
         this.renderLevelNav();
         this.updateStats();
         
@@ -787,6 +1077,7 @@ const gameEngine = {
         }
         
         this.renderCertificateButton();
+        this.renderLiveGitHubState();
         this.saveGame();
     },    
     // Render objectives for current level
@@ -921,6 +1212,7 @@ const gameEngine = {
             }
         }
         this.renderCertificateButton();
+        this.renderLiveGitHubState();
         this.updateObjectivesPanelState();
     },
     
@@ -1067,6 +1359,9 @@ const gameEngine = {
         if (window.certificateStore && window.certificateStore.save) {
             window.certificateStore.save(Array.isArray(window.gameState.certificates) ? window.gameState.certificates : []);
         }
+        if (window.liveGitHubStore && window.liveGitHubStore.save) {
+            window.liveGitHubStore.save(window.gameState.liveGitHub || {});
+        }
 
         if (window.repoStore && window.repoStore.save && window.fileSystemModule && window.fileSystemModule.export) {
             window.repoStore.save({
@@ -1133,6 +1428,16 @@ const gameEngine = {
             : [];
         window.gameState = createDefaultGameState();
         window.gameState.certificates = Array.isArray(preservedCertificates) ? preservedCertificates.slice() : [];
+        const preservedLiveGitHub = window.liveGitHubStore && window.liveGitHubStore.load
+            ? window.liveGitHubStore.load()
+            : {};
+        window.gameState.liveGitHub = Object.assign({
+            connected: false,
+            authenticated: false,
+            repo: null,
+            user: null,
+            bridgeUrl: 'http://127.0.0.1:31556'
+        }, preservedLiveGitHub || {});
         window.gameState.introSeen = false;
         this.syncGlobalEnvironmentConfig();
         this.loadLevel(0);

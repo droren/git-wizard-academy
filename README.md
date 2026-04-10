@@ -11,6 +11,7 @@ It blends realistic Git command simulation, guided lessons, boss challenges, and
 - Mentor-driven campaign framing plus per-chapter guardians/bosses
 - Tiered progression path with certificates for Git Knight through Grand Git Wizard
 - Real Repository Export Mode with a Node-based Git CLI exporter and zip archive output
+- Live GitHub Mode with a local Node bridge for real GitHub repos, PRs, reviews, and CI workflows
 - XP, achievements, streaks, boss encounters, level objectives
 - Persistent state using `localStorage` (lesson progress, repo state, config)
 - ANSI-rendered terminal output with `xterm.js` support
@@ -32,6 +33,12 @@ It blends realistic Git command simulation, guided lessons, boss challenges, and
 - `js/file-system.js`: in-browser virtual filesystem + persistence
 - `js/storage-stores.js`: config/repo/lesson stores
 - `js/repo-model.js`: reusable repo model helpers
+- `js/export-repo.js`: real Git CLI exporter used by the export bridge
+- `js/export-bridge-server.js`: local Node bridge for real repository exports
+- `js/export-bridge-client.js`: browser client for the export bridge
+- `js/live-github-server.js`: local Node bridge for GitHub auth, repo management, PRs, reviews, and CI
+- `js/live-github-client.js`: browser client for Live GitHub Mode
+- `live-github.js`: launcher for the Live GitHub bridge
 - `js/test-bridge.js`: postMessage bridge used by integration harness
 - `tests/`: test runner, rule/scenario/story tests, browser harness page
 
@@ -63,6 +70,7 @@ This executes syntax checks and core suites:
 - `tests/story-arc.test.js`
 - `tests/tier-certificates.test.js`
 - `tests/export-repo.test.js`
+- `tests/live-github.test.js`
 
 ## Gameplay Notes
 
@@ -73,6 +81,8 @@ This executes syntax checks and core suites:
 - Tier capstone levels unlock downloadable HTML certificates that use your configured Git identity.
 - The `Export Repo` button packages the simulated repo state for a real CLI export bridge, or downloads an export package when no bridge is available.
 - Local bridge: `node export-bridge.js` starts the exporter on `http://127.0.0.1:31555`.
+- Live GitHub bridge: `node live-github.js` starts the GitHub bridge on `http://127.0.0.1:31556`.
+- Live GitHub Mode keeps credentials on the local bridge process instead of browser-visible lesson state.
 - Merge Monster (Level 4) is designed as a real conflict-marker workflow:
   1. trigger merge conflict
   2. inspect markers with `cat`/`nano`
@@ -90,6 +100,7 @@ This executes syntax checks and core suites:
 ## Future Enhancements
 
 - Dedicated repository management mode (PR-style conflict UI scenarios)
+- Full Live GitHub Mode expansion with repository provisioning, PR review loops, and Actions-driven validation
 - Expanded graph visualization and timeline debugging tools
 - More deterministic UI integration tests (Playwright-based)
 - Additional lesson-specific validators and anti-shortcut guards

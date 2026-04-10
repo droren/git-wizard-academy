@@ -49,7 +49,10 @@
         }
         if (cmd === 'exec') {
             const line = String((args && args.command) || '');
-            window.ui.processCommand(line);
+            const maybePromise = window.ui.processCommand(line);
+            if (maybePromise && typeof maybePromise.then === 'function') {
+                await maybePromise;
+            }
             return { state: serializeState() };
         }
         if (cmd === 'checkObjectives') {

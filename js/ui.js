@@ -212,6 +212,16 @@ const ui = {
         const downloadCertificateBtn = document.getElementById('downloadCertificateBtn');
         const exportRepoBtn = document.getElementById('exportRepoBtn');
         const exportRepoCloseBtn = document.getElementById('exportRepoCloseBtn');
+        const liveGitHubBtn = document.getElementById('liveGitHubBtn');
+        const liveGitHubCloseBtn = document.getElementById('liveGitHubCloseBtn');
+        const liveGitHubConnectBtn = document.getElementById('liveGitHubConnectBtn');
+        const liveGitHubCreateRepoBtn = document.getElementById('liveGitHubCreateRepoBtn');
+        const liveGitHubPushBtn = document.getElementById('liveGitHubPushBtn');
+        const liveGitHubPullBtn = document.getElementById('liveGitHubPullBtn');
+        const liveGitHubInstallWorkflowBtn = document.getElementById('liveGitHubInstallWorkflowBtn');
+        const liveGitHubPrBtn = document.getElementById('liveGitHubPrBtn');
+        const liveGitHubReviewBtn = document.getElementById('liveGitHubReviewBtn');
+        const liveGitHubLogoutBtn = document.getElementById('liveGitHubLogoutBtn');
 
         this.initTerminalAdapter();
         
@@ -263,9 +273,93 @@ const ui = {
                 window.gameEngine.openExportModal();
             }
         });
+        if (liveGitHubBtn) liveGitHubBtn.addEventListener('click', function() {
+            if (window.gameEngine && window.gameEngine.openLiveGitHubModal) {
+                window.gameEngine.openLiveGitHubModal();
+            }
+        });
         if (exportRepoCloseBtn) exportRepoCloseBtn.addEventListener('click', function() {
             if (window.gameEngine && window.gameEngine.closeExportModal) {
                 window.gameEngine.closeExportModal();
+            }
+        });
+        if (liveGitHubCloseBtn) liveGitHubCloseBtn.addEventListener('click', function() {
+            if (window.gameEngine && window.gameEngine.closeLiveGitHubModal) {
+                window.gameEngine.closeLiveGitHubModal();
+            }
+        });
+        if (liveGitHubConnectBtn) liveGitHubConnectBtn.addEventListener('click', async function() {
+            if (window.gameEngine && window.gameEngine.connectLiveGitHub) {
+                try {
+                    await window.gameEngine.connectLiveGitHub();
+                } catch (err) {
+                    if (window.gameEngine && window.gameEngine.updateLiveGitHubStatus) {
+                        window.gameEngine.updateLiveGitHubStatus(err.message);
+                    }
+                }
+            }
+        });
+        if (liveGitHubCreateRepoBtn) liveGitHubCreateRepoBtn.addEventListener('click', async function() {
+            if (window.gameEngine && window.gameEngine.createLiveGitHubRepo) {
+                try {
+                    await window.gameEngine.createLiveGitHubRepo();
+                } catch (err) {
+                    if (window.gameEngine && window.gameEngine.updateLiveGitHubStatus) window.gameEngine.updateLiveGitHubStatus(err.message);
+                }
+            }
+        });
+        if (liveGitHubPushBtn) liveGitHubPushBtn.addEventListener('click', async function() {
+            if (window.gameEngine && window.gameEngine.pushLiveGitHubRepo) {
+                try {
+                    await window.gameEngine.pushLiveGitHubRepo();
+                } catch (err) {
+                    if (window.gameEngine && window.gameEngine.updateLiveGitHubStatus) window.gameEngine.updateLiveGitHubStatus(err.message);
+                }
+            }
+        });
+        if (liveGitHubPullBtn) liveGitHubPullBtn.addEventListener('click', async function() {
+            if (window.gameEngine && window.gameEngine.pullLiveGitHubRepo) {
+                try {
+                    await window.gameEngine.pullLiveGitHubRepo();
+                } catch (err) {
+                    if (window.gameEngine && window.gameEngine.updateLiveGitHubStatus) window.gameEngine.updateLiveGitHubStatus(err.message);
+                }
+            }
+        });
+        if (liveGitHubInstallWorkflowBtn) liveGitHubInstallWorkflowBtn.addEventListener('click', async function() {
+            if (window.gameEngine && window.gameEngine.installLiveGitHubWorkflow) {
+                try {
+                    await window.gameEngine.installLiveGitHubWorkflow();
+                } catch (err) {
+                    if (window.gameEngine && window.gameEngine.updateLiveGitHubStatus) window.gameEngine.updateLiveGitHubStatus(err.message);
+                }
+            }
+        });
+        if (liveGitHubPrBtn) liveGitHubPrBtn.addEventListener('click', async function() {
+            if (window.gameEngine && window.gameEngine.createLiveGitHubPr) {
+                try {
+                    await window.gameEngine.createLiveGitHubPr();
+                } catch (err) {
+                    if (window.gameEngine && window.gameEngine.updateLiveGitHubStatus) window.gameEngine.updateLiveGitHubStatus(err.message);
+                }
+            }
+        });
+        if (liveGitHubReviewBtn) liveGitHubReviewBtn.addEventListener('click', async function() {
+            if (window.gameEngine && window.gameEngine.runLiveGitHubReviewBot) {
+                try {
+                    await window.gameEngine.runLiveGitHubReviewBot();
+                } catch (err) {
+                    if (window.gameEngine && window.gameEngine.updateLiveGitHubStatus) window.gameEngine.updateLiveGitHubStatus(err.message);
+                }
+            }
+        });
+        if (liveGitHubLogoutBtn) liveGitHubLogoutBtn.addEventListener('click', async function() {
+            if (window.gameEngine && window.gameEngine.logoutLiveGitHub) {
+                try {
+                    await window.gameEngine.logoutLiveGitHub();
+                } catch (err) {
+                    if (window.gameEngine && window.gameEngine.updateLiveGitHubStatus) window.gameEngine.updateLiveGitHubStatus(err.message);
+                }
             }
         });
         document.querySelectorAll('.export-mode-btn').forEach((btn) => {
@@ -290,6 +384,9 @@ const ui = {
         }
 
         this.updateConflictUI();
+        if (window.gameEngine && window.gameEngine.renderLiveGitHubState) {
+            window.gameEngine.renderLiveGitHubState();
+        }
     },
 
     togglePanelContent: function(e) {
@@ -948,22 +1045,22 @@ const ui = {
     },
     
     // Process any command
-    processCommand: function(input) {
+    processCommand: async function(input) {
         const chain = this.splitChainedCommands(input);
         if (chain.length > 1) {
             let lastResult = null;
             for (let i = 0; i < chain.length; i++) {
                 const cmdInput = chain[i];
                 if (!cmdInput) continue;
-                lastResult = this.processSingleCommand(cmdInput);
+                lastResult = await this.processSingleCommand(cmdInput);
                 if (!lastResult || lastResult.success === false) break;
             }
             return;
         }
-        this.processSingleCommand(input);
+        await this.processSingleCommand(input);
     },
 
-    processSingleCommand: function(input) {
+    processSingleCommand: async function(input) {
         const terminalHistory = document.getElementById('terminalHistory');
         
         if (this.terminalMode === 'xterm' && this.xterm) {
@@ -1024,9 +1121,13 @@ const ui = {
         }
         
         // Display result
+        if (result && typeof result.then === 'function') {
+            result = await result;
+        }
+
         if (result && !result.isSystem) {
             this.writeToTerminal(result.message || '', result.isRaw ? false : !result.success);
-            
+
             if (result.success && result.xp) {
                 window.gameEngine.addXP(result.xp);
             }

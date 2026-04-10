@@ -11,6 +11,9 @@ node --check js/story-arc.js
 node --check js/storage-stores.js
 node --check js/export-repo.js
 node --check js/export-bridge-server.js
+node --check js/live-github-server.js
+node --check js/live-github-client.js
+node --check live-github.js
 node tests/objective-rules.test.js
 node tests/lesson-scenarios.test.js
 node tests/story-arc.test.js
@@ -18,5 +21,6 @@ node tests/curriculum-integrity.test.js
 node tests/tier-certificates.test.js
 node tests/export-repo.test.js
 node tests/export-bridge.test.js
+node tests/live-github.test.js
 
 echo "all checks passed"
