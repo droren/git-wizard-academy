@@ -28,6 +28,7 @@ function run() {
     assert(l.initialWorkspaceFiles && typeof l.initialWorkspaceFiles === 'object', `level ${i + 1} missing initialWorkspaceFiles`);
     assert(Object.keys(l.initialWorkspaceFiles).length >= 1, `level ${i + 1} should seed at least one file`);
     assert(l.repoSetup && l.repoSetup.mode && l.repoSetup.summary, `level ${i + 1} missing repo setup metadata`);
+    assert(l.tier && l.tierKey && l.tierBadge, `level ${i + 1} missing tier metadata`);
     (l.initialGitState.commits || []).forEach((commit, idx) => {
       assert(Array.isArray(commit.files) && commit.files.length >= 1, `level ${i + 1} seed commit ${idx + 1} should reference at least one file`);
     });

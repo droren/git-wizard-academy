@@ -662,5 +662,29 @@ lessons.forEach(function(lesson, index) {
         };
 });
 
+const tierCatalog = [
+    { key: 'git-knight', name: 'Git Knight', levels: [0, 1], badge: '🌱' },
+    { key: 'advanced-knight', name: 'Advanced Knight', levels: [2, 3], badge: '⚔️' },
+    { key: 'template-knight', name: 'Template Knight', levels: [4, 5], badge: '🏛️' },
+    { key: 'git-wizard', name: 'Git Wizard', levels: [6, 7], badge: '🔮' },
+    { key: 'grand-git-wizard', name: 'Grand Git Wizard', levels: [8, 9], badge: '👑' }
+];
+
+lessons.forEach(function(lesson, index) {
+    const tier = tierCatalog.find(function(entry) {
+        return entry.levels.indexOf(index) !== -1;
+    }) || tierCatalog[tierCatalog.length - 1];
+
+    lesson.tier = tier.name;
+    lesson.tierKey = tier.key;
+    lesson.tierBadge = tier.badge;
+    lesson.tierLevelIndex = tier.levels.indexOf(index);
+    lesson.tierIsCapstone = index === tier.levels[tier.levels.length - 1];
+});
+
+if (typeof window !== 'undefined') {
+    window.gwaTiers = tierCatalog;
+}
+
 // Export for use in other modules
 window.lessons = lessons;

@@ -21,9 +21,11 @@ currentLevel: 0,
     branches: 0,
     merges: 0,
     conflicts: 0,
-    achievements: [],
-    completedLevels: [],
-    currentObjectives: [],
+        achievements: [],
+        certificates: [],
+        tierProgress: {},
+        completedLevels: [],
+        currentObjectives: [],
     gitState: {
         branches: ['main'],
         currentBranch: 'main',
@@ -33,7 +35,7 @@ currentLevel: 0,
     commandHistory: [],
     nanoFile: null,
     introSeen: false,
-    levelReadyToProceed: false
+        levelReadyToProceed: false
     };
 }
 
@@ -79,10 +81,197 @@ const gameEngine = {
     updateObjectivesPanelState: function() {
         const proceedBtn = document.getElementById('proceedLevelBtn');
         const repoNote = document.getElementById('repoSetupNote');
+        const tierNote = document.getElementById('tierNote');
+        const lesson = (window.lessons && window.lessons[window.gameState.currentLevel]) ? window.lessons[window.gameState.currentLevel] : null;
         if (repoNote) repoNote.textContent = this.getRepoSetupMessage(window.gameState.currentLevel);
+        if (tierNote) {
+            tierNote.textContent = lesson
+                ? 'Tier: ' + lesson.tier + (lesson.tierIsCapstone ? ' • Tier capstone' : ' • Chapter ' + (lesson.tierLevelIndex + 1))
+                : '';
+        }
         if (proceedBtn) {
             proceedBtn.style.display = window.gameState.levelReadyToProceed ? 'inline-flex' : 'none';
         }
+    },
+
+    getLessonTierInfo: function(levelIndex) {
+        const lesson = (window.lessons && window.lessons[levelIndex]) ? window.lessons[levelIndex] : null;
+        return lesson ? {
+            key: lesson.tierKey,
+            name: lesson.tier,
+            badge: lesson.tierBadge,
+            isCapstone: !!lesson.tierIsCapstone,
+            indexWithinTier: lesson.tierLevelIndex
+        } : null;
+    },
+
+    getCertificateName: function() {
+        const lesson = (window.lessons && window.lessons[window.gameState.currentLevel]) ? window.lessons[window.gameState.currentLevel] : null;
+        return lesson ? lesson.tier : 'Git Wizard Academy';
+    },
+
+    getUserDisplayName: function() {
+        const cfg = window.configStore && window.configStore.load ? window.configStore.load() : {};
+        return cfg['user.name'] || (window.gameState.gitState && window.gameState.gitState.config && window.gameState.gitState.config.global && window.gameState.gitState.config.global['user.name']) || 'Anonymous Apprentice';
+    },
+
+    getUserEmail: function() {
+        const cfg = window.configStore && window.configStore.load ? window.configStore.load() : {};
+        return cfg['user.email'] || (window.gameState.gitState && window.gameState.gitState.config && window.gameState.gitState.config.global && window.gameState.gitState.config.global['user.email']) || 'unknown@example.com';
+    },
+
+    buildCertificateRecord: function(levelIndex) {
+        const lesson = (window.lessons && window.lessons[levelIndex]) ? window.lessons[levelIndex] : null;
+        if (!lesson) return null;
+        return {
+            tierKey: lesson.tierKey,
+            tierName: lesson.tier,
+            badge: lesson.tierBadge,
+            levelIndex,
+            levelTitle: lesson.title,
+            achievedAt: new Date().toISOString(),
+            name: this.getUserDisplayName(),
+            email: this.getUserEmail()
+        };
+    },
+
+    hasCertificateForTier: function(tierKey) {
+        const list = Array.isArray(window.gameState.certificates) ? window.gameState.certificates : [];
+        return list.some(function(c) { return c.tierKey === tierKey; });
+    },
+
+    renderCertificateButton: function() {
+        const btn = document.getElementById('downloadCertificateBtn');
+        const lesson = (window.lessons && window.lessons[window.gameState.currentLevel]) ? window.lessons[window.gameState.currentLevel] : null;
+        if (!btn) return;
+        const cfg = window.configStore && window.configStore.load ? window.configStore.load() : {};
+        const hasIdentity = !!(cfg['user.name'] && cfg['user.email']);
+        const canIssue = !!(lesson && lesson.tierIsCapstone && hasIdentity && window.gameState.levelReadyToProceed);
+        btn.style.display = canIssue ? 'inline-flex' : 'none';
+        btn.textContent = lesson ? ('Download ' + lesson.tier + ' Certificate') : 'Download Certificate';
+    },
+
+    issueCertificate: function(levelIndex) {
+        const record = this.buildCertificateRecord(levelIndex);
+        if (!record) return false;
+
+        window.gameState.certificates = Array.isArray(window.gameState.certificates) ? window.gameState.certificates : [];
+        if (!this.hasCertificateForTier(record.tierKey)) {
+            window.gameState.certificates.push(record);
+        }
+
+        if (window.certificateStore && window.certificateStore.save) {
+            window.certificateStore.save(window.gameState.certificates);
+        }
+
+        const esc = (window.ui && window.ui.escapeHtml)
+            ? window.ui.escapeHtml.bind(window.ui)
+            : function(value) {
+                return String(value || '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            };
+
+        const html = [
+            '<!doctype html><html><head><meta charset="utf-8"><title>' + record.tierName + ' Certificate</title>',
+            '<style>body{font-family:Georgia,serif;background:#08131f;color:#f5f7fb;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0;padding:32px;}',
+            '.card{width:min(760px,92vw);background:linear-gradient(145deg,#102338,#0b1421);border:1px solid rgba(255,255,255,.12);border-radius:24px;padding:48px;box-shadow:0 30px 80px rgba(0,0,0,.45);text-align:center;}',
+            '.badge{font-size:64px;margin-bottom:12px}.tier{color:#83d0ff;letter-spacing:.18em;text-transform:uppercase;font-size:.8rem}',
+            '.name{font-size:2.8rem;margin:16px 0 0}.title{font-size:1.4rem;color:#d6e5f3;margin:12px 0 24px}.meta{margin-top:28px;color:#a9c0d6;font-size:.95rem;line-height:1.7}',
+            '</style></head><body><div class="card"><div class="badge">' + esc(record.badge) + '</div><div class="tier">Git Wizard Academy</div><div class="name">' + esc(record.name) + '</div><div class="title">Certified ' + esc(record.tierName) + '</div><div class="meta">Level: ' + (record.levelIndex + 1) + ' · ' + esc(record.levelTitle) + '<br>Name: ' + esc(record.name) + ' &lt;' + esc(record.email) + '&gt;<br>Issued: ' + esc(new Date(record.achievedAt).toLocaleString()) + '</div></div></body></html>'
+        ].join('');
+        const blob = new Blob([html], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = record.tierKey + '-certificate.html';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+        return true;
+    },
+
+    openExportModal: function() {
+        const overlay = document.getElementById('exportRepoOverlay');
+        const status = document.getElementById('exportRepoStatus');
+        if (status) {
+            status.textContent = 'Select an export mode to reconstruct the repository. Run `node export-bridge.js` in a local terminal to enable the real Git CLI bridge at http://127.0.0.1:31555. If the bridge is not running, the browser falls back to a downloadable export package.';
+        }
+        if (overlay) overlay.classList.add('show');
+    },
+
+    closeExportModal: function() {
+        const overlay = document.getElementById('exportRepoOverlay');
+        if (overlay) overlay.classList.remove('show');
+    },
+
+    buildExportPayload: function(mode) {
+        return {
+            mode: mode || 'clean',
+            generatedAt: new Date().toISOString(),
+            currentLevel: window.gameState.currentLevel,
+            lessonTitle: window.lessons && window.lessons[window.gameState.currentLevel] ? window.lessons[window.gameState.currentLevel].title : '',
+            gameState: {
+                currentLevel: window.gameState.currentLevel,
+                playerLevel: window.gameState.playerLevel,
+                completedLevels: window.gameState.completedLevels,
+                commandsUsed: window.gameState.commandsUsed,
+                commits: window.gameState.commits,
+                branches: window.gameState.branches,
+                merges: window.gameState.merges,
+                conflicts: window.gameState.conflicts,
+                certificates: window.gameState.certificates,
+                tierProgress: window.gameState.tierProgress,
+                flags: window.gameState.flags,
+                gitState: window.gameState.gitState
+            },
+            fileSystem: window.fileSystemModule && window.fileSystemModule.export ? window.fileSystemModule.export() : null,
+            config: window.configStore && window.configStore.load ? window.configStore.load() : {}
+        };
+    },
+
+    downloadExportPackage: function(mode) {
+        const payload = this.buildExportPayload(mode);
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'git-wizard-export-' + (mode || 'clean') + '.json';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+    },
+
+    exportRepo: async function(mode) {
+        const status = document.getElementById('exportRepoStatus');
+        const payload = this.buildExportPayload(mode);
+
+        if (window.exportRepoBridge && typeof window.exportRepoBridge.exportRepo === 'function') {
+            try {
+                if (status) status.textContent = 'Exporting repository with real Git CLI...';
+                const result = await window.exportRepoBridge.exportRepo(payload);
+                if (status) {
+                    status.textContent = result && result.archivePath
+                        ? 'Export complete. Archive created at ' + result.archivePath
+                        : 'Export complete.';
+                }
+                return result;
+            } catch (err) {
+                if (status) status.textContent = 'Export failed: ' + (err && err.message ? err.message : String(err));
+                throw err;
+            }
+        }
+
+        this.downloadExportPackage(mode);
+        if (status) {
+            status.textContent = 'This browser build cannot invoke child_process directly. The simulated repo state package was downloaded instead. Use the Node export module to turn it into a real Git repository.';
+        }
+        return { downloaded: true, payload };
     },
 
     // Initialize game
@@ -112,6 +301,10 @@ const gameEngine = {
         if (repoSnapshot && repoSnapshot.fsSnapshot && window.fileSystemModule && window.fileSystemModule.import) {
             window.fileSystemModule.import(repoSnapshot.fsSnapshot);
         }
+        const savedCertificates = window.certificateStore && window.certificateStore.load ? window.certificateStore.load() : null;
+        if (Array.isArray(savedCertificates)) {
+            window.gameState.certificates = savedCertificates.slice();
+        }
 
         // Back-compat defaults
         if (!Number.isFinite(window.gameState.playerLevel) || window.gameState.playerLevel < 1) window.gameState.playerLevel = 1;
@@ -120,6 +313,7 @@ const gameEngine = {
         if (!Number.isFinite(window.gameState.xpRequiredForLevel) || window.gameState.xpRequiredForLevel < 50) window.gameState.xpRequiredForLevel = 300;
         if (!Array.isArray(window.gameState.completedLevels)) window.gameState.completedLevels = [];
         if (!Array.isArray(window.gameState.achievements)) window.gameState.achievements = [];
+        if (!window.gameState.tierProgress || typeof window.gameState.tierProgress !== 'object') window.gameState.tierProgress = {};
         if (!Array.isArray(window.gameState.commandHistory)) window.gameState.commandHistory = [];
         if (!window.gameState.flags) window.gameState.flags = {};
         if (typeof window.gameState.introSeen !== 'boolean') window.gameState.introSeen = false;
@@ -156,6 +350,7 @@ const gameEngine = {
             this.renderLevelNav();
             this.updateStats();
             this.renderAchievements();
+            this.renderCertificateButton();
             this.saveGame();
         } else {
             // Fresh load/new learner path.
@@ -565,6 +760,7 @@ const gameEngine = {
         
         this.renderObjectives();
         this.updateObjectivesPanelState();
+        this.renderCertificateButton();
         this.renderLevelNav();
         this.updateStats();
         
@@ -590,6 +786,7 @@ const gameEngine = {
             setTimeout(function() { window.ui.playLevelFlare(levelIndex); }, 80);
         }
         
+        this.renderCertificateButton();
         this.saveGame();
     },    
     // Render objectives for current level
@@ -703,6 +900,15 @@ const gameEngine = {
         }
 
         window.gameState.levelReadyToProceed = true;
+        const lesson = (window.lessons && window.lessons[window.gameState.currentLevel]) ? window.lessons[window.gameState.currentLevel] : null;
+        if (lesson && lesson.tierIsCapstone) {
+            window.gameState.tierProgress = window.gameState.tierProgress || {};
+            window.gameState.tierProgress[lesson.tierKey] = {
+                levelIndex: window.gameState.currentLevel,
+                tierName: lesson.tier,
+                completedAt: new Date().toISOString()
+            };
+        }
         if (window.gameState.completedLevels.indexOf(window.gameState.currentLevel) === -1) {
             window.gameState.completedLevels.push(window.gameState.currentLevel);
         }
@@ -714,6 +920,7 @@ const gameEngine = {
                 window.ui.celebrateObjectivesPanel();
             }
         }
+        this.renderCertificateButton();
         this.updateObjectivesPanelState();
     },
     
@@ -857,6 +1064,10 @@ const gameEngine = {
             localStorage.setItem('gwa_gameState', JSON.stringify(window.gameState));
         }
 
+        if (window.certificateStore && window.certificateStore.save) {
+            window.certificateStore.save(Array.isArray(window.gameState.certificates) ? window.gameState.certificates : []);
+        }
+
         if (window.repoStore && window.repoStore.save && window.fileSystemModule && window.fileSystemModule.export) {
             window.repoStore.save({
                 gitState: window.gameState.gitState,
@@ -917,7 +1128,11 @@ const gameEngine = {
 
         if (window.fileSystemModule && window.fileSystemModule.reset) window.fileSystemModule.reset();
 
+        const preservedCertificates = window.certificateStore && window.certificateStore.load
+            ? window.certificateStore.load()
+            : [];
         window.gameState = createDefaultGameState();
+        window.gameState.certificates = Array.isArray(preservedCertificates) ? preservedCertificates.slice() : [];
         window.gameState.introSeen = false;
         this.syncGlobalEnvironmentConfig();
         this.loadLevel(0);

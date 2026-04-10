@@ -9,6 +9,8 @@ It blends realistic Git command simulation, guided lessons, boss challenges, and
 - Fantasy/sci-fi narrative arc woven through all 10 levels
 - Cinematic opening crawl with replay support and `Esc` skip
 - Mentor-driven campaign framing plus per-chapter guardians/bosses
+- Tiered progression path with certificates for Git Knight through Grand Git Wizard
+- Real Repository Export Mode with a Node-based Git CLI exporter and zip archive output
 - XP, achievements, streaks, boss encounters, level objectives
 - Persistent state using `localStorage` (lesson progress, repo state, config)
 - ANSI-rendered terminal output with `xterm.js` support
@@ -59,6 +61,8 @@ This executes syntax checks and core suites:
 - `tests/objective-rules.test.js`
 - `tests/lesson-scenarios.test.js`
 - `tests/story-arc.test.js`
+- `tests/tier-certificates.test.js`
+- `tests/export-repo.test.js`
 
 ## Gameplay Notes
 
@@ -66,6 +70,9 @@ This executes syntax checks and core suites:
 - `Reset Game` clears campaign progress, restarts from level 1, replays the cinematic intro, and keeps your global Git environment intact.
 - `Replay Intro` reopens the opening crawl without cluttering the main interface.
 - Global `git config --global ...` settings are mirrored into a virtual `~/.gitconfig` and persist across the whole course.
+- Tier capstone levels unlock downloadable HTML certificates that use your configured Git identity.
+- The `Export Repo` button packages the simulated repo state for a real CLI export bridge, or downloads an export package when no bridge is available.
+- Local bridge: `node export-bridge.js` starts the exporter on `http://127.0.0.1:31555`.
 - Merge Monster (Level 4) is designed as a real conflict-marker workflow:
   1. trigger merge conflict
   2. inspect markers with `cat`/`nano`

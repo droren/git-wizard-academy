@@ -106,6 +106,7 @@ function ensureGitState() {
     if (!s.index || typeof s.index !== 'object') s.index = {};
     if (!Array.isArray(s.staged)) s.staged = [];
     if (!s.trackedFiles || typeof s.trackedFiles !== 'object') s.trackedFiles = {};
+    if (!s.tags || typeof s.tags !== 'object') s.tags = {};
 
     s.config = s.config || {};
     s.config.local = s.config.local || {};
@@ -180,6 +181,77 @@ function parseCommitMessage(args) {
     const mIdx = args.indexOf('-m');
     if (mIdx !== -1 && args[mIdx + 1]) return args[mIdx + 1];
     return 'Update';
+}
+
+function validateCommitMessage(message) {
+    const normalized = String(message || '').trim();
+    if (!normalized) {
+        return { ok: false, reason: 'error: commit message cannot be empty' };
+    }
+    if (normalized.length < 8) {
+        return { ok: false, reason: 'error: commit message is too short. Write a more descriptive message.' };
+    }
+    if (/^(update|wip|temp|test|fix|commit|changes?)$/i.test(normalized)) {
+        return { ok: false, reason: 'error: commit message is too vague. Use a descriptive summary.' };
+    }
+    return { ok: true, message: normalized };
+}
+
+function getHookPath(name) {
+    return '.git/hooks/' + name;
+}
+
+function readHookScript(name) {
+    const fs = window.fileSystemModule;
+    const path = getHookPath(name);
+    if (!fs || !fs.exists(path)) return '';
+    const file = fs.readFile(path);
+    return file ? String(file.content || '') : '';
+}
+
+function hasActiveHook(name) {
+    return !!readHookScript(name);
+}
+
+function commitMsgHookAllows(message) {
+    const hook = readHookScript('commit-msg');
+    if (!hook) return { ok: true };
+
+    const normalized = String(message || '').trim();
+    if (/exit\s+1|reject|fail/i.test(hook)) {
+        return { ok: false, reason: 'commit-msg hook rejected the commit message' };
+    }
+    if (/conventional/i.test(hook) || /feat:|fix:|docs:|chore:|refactor:|test:|ci:/i.test(hook)) {
+        const conventional = /^(feat|fix|docs|chore|refactor|test|ci|style|perf|build|revert)(\([\w.-]+\))?:\s+.+/.test(normalized);
+        if (!conventional) {
+            return { ok: false, reason: 'commit-msg hook rejected the message. Try a conventional commit like "feat: add login flow".' };
+        }
+    }
+    return { ok: true };
+}
+
+function preCommitHookAllows(state) {
+    const hook = readHookScript('pre-commit');
+    if (!hook) return { ok: true };
+
+    if (/exit\s+1|reject|fail/i.test(hook)) {
+        return { ok: false, reason: 'pre-commit hook rejected the commit' };
+    }
+
+    const staged = state.index || {};
+    const stagedNames = Object.keys(staged);
+    const dirtyContent = stagedNames.some((name) => {
+        const entry = staged[name];
+        if (!entry || entry.deleted) return false;
+        const content = String(entry.content || '');
+        return /TODO|FIXME|debugger;|console\.log\(/i.test(content);
+    });
+
+    if ((/lint|semgrep|test/i.test(hook)) && dirtyContent) {
+        return { ok: false, reason: 'pre-commit hook failed: lint/test checks found issues in staged files' };
+    }
+
+    return { ok: true };
 }
 
 function hasUnresolvedConflictMarkers(content) {
@@ -852,12 +924,33 @@ gitCommands.commit = function(args) {
     }
 
     const commitMessage = parseCommitMessage(args);
+    const messageCheck = validateCommitMessage(commitMessage);
+    if (!messageCheck.ok) {
+        window.gameState.flags = window.gameState.flags || {};
+        window.gameState.flags.commitMessageRejected = true;
+        return { success: false, message: messageCheck.reason, xp: 0 };
+    }
+
+    const preCommitCheck = preCommitHookAllows(state);
+    if (!preCommitCheck.ok) {
+        window.gameState.flags = window.gameState.flags || {};
+        window.gameState.flags.preCommitHookBlocked = true;
+        return { success: false, message: preCommitCheck.reason, xp: 0 };
+    }
+
+    const msgHookCheck = commitMsgHookAllows(commitMessage);
+    if (!msgHookCheck.ok) {
+        window.gameState.flags = window.gameState.flags || {};
+        window.gameState.flags.commitMsgHookBlocked = true;
+        return { success: false, message: msgHookCheck.reason, xp: 0 };
+    }
+
     const parents = state.mergeInProgress
         ? [state.refs[state.currentBranch], state.mergeHead].filter(Boolean)
         : undefined;
 
     const result = createCommit(state, {
-        message: commitMessage,
+        message: messageCheck.message,
         allowEmpty,
         parents
     });
@@ -888,6 +981,7 @@ gitCommands.commit = function(args) {
     window.gameState.commits++;
     window.gameState.flags = window.gameState.flags || {};
     window.gameState.flags.ranCommit = true;
+    window.gameState.flags.lastCommitMessageGood = true;
 
     if (window.gameEngine) {
         window.gameEngine.checkObjectives();
@@ -1392,14 +1486,40 @@ gitCommands.tag = function(args) {
     window.gameState.flags = window.gameState.flags || {};
     window.gameState.flags.ranTag = true;
 
+    state.tags = state.tags || {};
+
     const annotateIndex = args.findIndex((a) => a === '-a');
     const messageIndex = args.findIndex((a) => a === '-m');
+    const target = state.refs[state.currentBranch] || null;
+    const now = new Date().toISOString();
 
     if (annotateIndex !== -1 && messageIndex !== -1 && args[messageIndex + 1]) {
         window.gameState.flags.createdAnnotatedTag = true;
+        state.tags[tagName] = {
+            name: tagName,
+            target: target,
+            annotated: true,
+            message: args[messageIndex + 1],
+            tagger: {
+                name: readConfigValue(state, 'user.name') || 'You',
+                email: readConfigValue(state, 'user.email') || 'you@example.com',
+                date: now
+            }
+        };
         return { success: true, message: '[ tagged ' + tagName + ' ]', xp: 30 };
     }
 
+    state.tags[tagName] = {
+        name: tagName,
+        target: target,
+        annotated: false,
+        message: '',
+        tagger: {
+            name: readConfigValue(state, 'user.name') || 'You',
+            email: readConfigValue(state, 'user.email') || 'you@example.com',
+            date: now
+        }
+    };
     return { success: true, message: 'Tagged ' + tagName, xp: 25 };
 };
 

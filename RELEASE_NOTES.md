@@ -1,5 +1,48 @@
 # Release Notes
 
+## 2026-04-10 - Real Repository Export Mode
+
+### Added
+
+- Node-based real repository exporter in `js/export-repo.js`
+- Export UI with:
+  - Clean Export
+  - Full History
+  - With Workflow
+- Support for real Git CLI reconstruction of commits, branches, tags, merge commits, and a workflow-ready bare remote mirror
+- Browser fallback export package download for hosts that do not inject a local export bridge
+- Local Node bridge script (`export-bridge.js`) for direct browser-to-CLI export on `http://127.0.0.1:31555`
+- Regression tests covering exported `git log`, `git branch`, `git status`, tags, detached HEAD, and workflow remote setup
+
+### Changed
+
+- `git tag` now stores tags in simulated repo state so the exporter can recreate them
+
+## 2026-04-10 - Tiered Progression, Certificates, and Commit Realism
+
+### Added
+
+- Tier metadata for every lesson, with five named progression tiers:
+  - Git Knight
+  - Advanced Knight
+  - Template Knight
+  - Git Wizard
+  - Grand Git Wizard
+- Tier capstone tracking and downloadable HTML certificates that use the learner's stored Git identity
+- Persistent certificate storage separate from campaign reset state
+- Static validation tests for tier metadata and certificate UI/store wiring
+
+### Changed
+
+- Commit creation now rejects empty, vague, or too-short messages before a commit is recorded
+- Basic pre-commit and commit-msg hook simulation now blocks commits when hook files are present and configured to fail
+- Objectives sidebar now includes a visible tier note above repo setup guidance
+
+### Test Coverage
+
+- Added `tests/tier-certificates.test.js`
+- Expanded lesson and curriculum integrity tests to verify tier metadata and capstone coverage
+
 ## 2026-03-11 - Narrative Campaign and Cinematic Intro Pass
 
 ### Added
