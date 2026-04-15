@@ -115,7 +115,95 @@ function ensureGitState() {
     if (typeof s.mergeInProgress !== 'boolean') s.mergeInProgress = false;
     if (!Array.isArray(s.conflictFiles)) s.conflictFiles = [];
 
+    s.remotes = s.remotes || {};
+    if (!s.remotes.origin) {
+        s.remotes.origin = {
+            name: 'origin',
+            fetchUrl: 'https://example.com/git-wizard-origin.git',
+            pushUrl: 'https://example.com/git-wizard-origin.git',
+            branches: {}
+        };
+    }
+    if (!s.remotes.upstream) {
+        s.remotes.upstream = {
+            name: 'upstream',
+            fetchUrl: 'https://example.com/git-wizard-upstream.git',
+            pushUrl: 'https://example.com/git-wizard-upstream.git',
+            branches: {}
+        };
+    }
+    s.remoteRefs = s.remoteRefs || {};
+    s.tracking = s.tracking || {};
+    Object.keys(s.remotes).forEach((remoteName) => {
+        const remote = s.remotes[remoteName];
+        remote.name = remoteName;
+        remote.fetchUrl = remote.fetchUrl || remote.pushUrl || '';
+        remote.pushUrl = remote.pushUrl || remote.fetchUrl || '';
+        remote.branches = remote.branches || {};
+    });
+    Object.keys(s.refs || {}).forEach((localBranch) => {
+        if (!s.tracking[localBranch]) {
+            s.tracking[localBranch] = { remote: 'origin', merge: 'refs/heads/' + localBranch };
+        }
+    });
+
     return s;
+}
+
+function renderRemoteList(state, verbose) {
+    const names = Object.keys(state.remotes || {}).sort();
+    if (!names.length) return '';
+    if (!verbose) return names.join('\n');
+    const lines = [];
+    names.forEach((name) => {
+        const remote = state.remotes[name];
+        lines.push(name + '  ' + (remote.fetchUrl || '') + ' (fetch)');
+        lines.push(name + '  ' + (remote.pushUrl || remote.fetchUrl || '') + ' (push)');
+    });
+    return lines.join('\n');
+}
+
+function getTrackingBranch(state, branchName) {
+    return state.tracking && state.tracking[branchName] ? state.tracking[branchName] : null;
+}
+
+function countAheadBehind(state, localSha, remoteSha) {
+    if (!localSha && !remoteSha) return { ahead: 0, behind: 0 };
+    if (!localSha) return { ahead: 0, behind: 1 };
+    if (!remoteSha) return { ahead: 1, behind: 0 };
+    if (localSha === remoteSha) return { ahead: 0, behind: 0 };
+    const localAnc = getAncestors(state, localSha);
+    const remoteAnc = getAncestors(state, remoteSha);
+    let ahead = 0;
+    let behind = 0;
+    localAnc.forEach((sha) => {
+        if (!remoteAnc.has(sha)) ahead++;
+    });
+    remoteAnc.forEach((sha) => {
+        if (!localAnc.has(sha)) behind++;
+    });
+    return { ahead, behind };
+}
+
+function applyFetchForRemote(state, remoteName, onlyBranch) {
+    const remote = state.remotes[remoteName];
+    if (!remote) return { updated: [], skipped: [] };
+
+    const updated = [];
+    const skipped = [];
+    Object.keys(remote.branches || {}).sort().forEach((branchName) => {
+        if (onlyBranch && onlyBranch !== branchName) return;
+        const sha = remote.branches[branchName] || null;
+        const refName = 'refs/remotes/' + remoteName + '/' + branchName;
+        state.remoteRefs[refName] = sha;
+        if (!(branchName in state.refs)) {
+            skipped.push(branchName);
+            return;
+        }
+        updated.push({ branch: branchName, sha, refName });
+    });
+
+    return { updated, skipped };
 }
 
 function getHeadCommit(state) {
@@ -659,7 +747,27 @@ gitCommands.init = function(args) {
         mergeInProgress: false,
         mergeHead: null,
         mergeBase: null,
-        conflictFiles: []
+        conflictFiles: [],
+        remotes: {
+            origin: {
+                name: 'origin',
+                fetchUrl: 'https://example.com/git-wizard-origin.git',
+                pushUrl: 'https://example.com/git-wizard-origin.git',
+                branches: { main: null }
+            },
+            upstream: {
+                name: 'upstream',
+                fetchUrl: 'https://example.com/git-wizard-upstream.git',
+                pushUrl: 'https://example.com/git-wizard-upstream.git',
+                branches: {}
+            }
+        },
+        remoteRefs: {
+            'refs/remotes/origin/main': null
+        },
+        tracking: {
+            main: { remote: 'origin', merge: 'refs/heads/main' }
+        }
     };
 
     window.gameState.flags = window.gameState.flags || {};
@@ -1858,13 +1966,38 @@ gitCommands.remote = async function(args) {
         return { success: true, message: '(note: Live GitHub Mode is connected)', xp: 0 };
     }
 
-    if (args.length === 0 || args.includes('-v')) {
-        return { success: true, message: 'origin  (fetch)\norigin  (push)\n(note: remotes are simulated in Git Wizard Academy)', xp: 5 };
+    const state = ensureGitState();
+    const verbose = args.includes('-v');
+    const sub = args.find((a) => !a.startsWith('-')) || '';
+
+    if (!sub) {
+        const out = renderRemoteList(state, verbose);
+        return { success: true, message: out + (out ? '\n' : '') + '(note: remotes are simulated in Git Wizard Academy)', xp: 5 };
     }
-    if (args.includes('add')) {
-        return { success: true, message: '(note: remotes are simulated in Git Wizard Academy)', xp: 10 };
+
+    if (sub === 'add') {
+        const plain = args.filter((a) => !a.startsWith('-'));
+        const name = plain[1];
+        const url = plain[2];
+        if (!name || !url) return { success: false, message: 'usage: git remote add <name> <url>', xp: 0 };
+        if (state.remotes[name]) return { success: false, message: "error: remote " + name + " already exists.", xp: 0 };
+        state.remotes[name] = { name, fetchUrl: url, pushUrl: url, branches: {} };
+        return { success: true, message: '', xp: 10 };
     }
-    return { success: true, message: '', xp: 0 };
+
+    if (sub === 'set-url') {
+        const plain = args.filter((a) => !a.startsWith('-'));
+        const name = plain[1];
+        const url = plain[2];
+        if (!name || !url) return { success: false, message: 'usage: git remote set-url <name> <url>', xp: 0 };
+        if (!state.remotes[name]) return { success: false, message: "error: No such remote '" + name + "'", xp: 0 };
+        state.remotes[name].fetchUrl = url;
+        state.remotes[name].pushUrl = url;
+        return { success: true, message: '', xp: 10 };
+    }
+
+    const out = renderRemoteList(state, verbose);
+    return { success: true, message: out, xp: 1 };
 };
 
 gitCommands.fetch = async function(args) {
@@ -1876,7 +2009,22 @@ gitCommands.fetch = async function(args) {
             xp: 15
         };
     }
-    return { success: true, message: 'From /\n   a8949f9..3b2a0c5  main     -> origin/main\n(note: fetch is simulated in Git Wizard Academy)', xp: 15 };
+    const state = ensureGitState();
+    const plain = args.filter((a) => !a.startsWith('-'));
+    const remoteName = plain[0] || 'origin';
+    const onlyBranch = plain[1] || '';
+    const remote = state.remotes[remoteName];
+    if (!remote) return { success: false, message: "fatal: '" + remoteName + "' does not appear to be a git repository", xp: 0 };
+
+    const fetched = applyFetchForRemote(state, remoteName, onlyBranch);
+    const lines = ['From ' + (remote.fetchUrl || '/repo.git')];
+    fetched.updated.forEach((entry) => {
+        const short = entry.sha ? entry.sha.slice(0, 7) : '0000000';
+        lines.push(' * [new ref]         ' + short + ' -> ' + remoteName + '/' + entry.branch);
+    });
+    if (!fetched.updated.length) lines.push('Already up to date.');
+    lines.push('(note: fetch is simulated in Git Wizard Academy)');
+    return { success: true, message: lines.join('\n'), xp: 15 };
 };
 
 gitCommands.pull = async function(args) {
@@ -1888,7 +2036,54 @@ gitCommands.pull = async function(args) {
             xp: 25
         };
     }
-    return { success: true, message: 'Updating a8949f9..3b2a0c5\nFast-forward\n file.txt | 2 +-\n 1 file changed, 1 insertion(+), 1 deletion(-)\n(note: pull is simulated in Git Wizard Academy)', xp: 25 };
+    const state = ensureGitState();
+    const plain = args.filter((a) => !a.startsWith('-'));
+    const tracking = getTrackingBranch(state, state.currentBranch) || { remote: 'origin', merge: 'refs/heads/' + state.currentBranch };
+    const remoteName = plain[0] || tracking.remote || 'origin';
+    const requestedBranch = plain[1] || tracking.merge.replace('refs/heads/', '');
+    const rebaseRequested = args.includes('--rebase') || readConfigValue(state, 'pull.rebase') === 'true';
+    const remote = state.remotes[remoteName];
+    if (!remote) return { success: false, message: "fatal: '" + remoteName + "' does not appear to be a git repository", xp: 0 };
+
+    applyFetchForRemote(state, remoteName, requestedBranch);
+    const remoteSha = state.remoteRefs['refs/remotes/' + remoteName + '/' + requestedBranch] || null;
+    const localSha = state.refs[state.currentBranch] || null;
+    if (!remoteSha) return { success: true, message: 'Already up to date.\n(note: pull is simulated in Git Wizard Academy)', xp: 10 };
+    if (localSha === remoteSha) return { success: true, message: 'Already up to date.\n(note: pull is simulated in Git Wizard Academy)', xp: 10 };
+
+    const localAnc = getAncestors(state, localSha);
+    const remoteAnc = getAncestors(state, remoteSha);
+
+    if (!localSha || localAnc.has(remoteSha)) {
+        return { success: true, message: 'Already up to date.\n(note: pull is simulated in Git Wizard Academy)', xp: 10 };
+    }
+
+    if (remoteAnc.has(localSha)) {
+        state.refs[state.currentBranch] = remoteSha;
+        refreshTrackedFiles(state);
+        writeWorkingSnapshot(getSnapshotForSha(state, remoteSha));
+        return {
+            success: true,
+            message: 'Updating ' + localSha.slice(0, 7) + '..' + remoteSha.slice(0, 7) + '\nFast-forward\n(note: pull is simulated in Git Wizard Academy)',
+            xp: 25
+        };
+    }
+
+    if (rebaseRequested) {
+        const result = gitCommands.rebase([remoteSha]);
+        return {
+            success: result.success,
+            message: (result.message || 'Rebased onto ' + remoteName + '/' + requestedBranch) + '\n(note: pull --rebase is simulated in Git Wizard Academy)',
+            xp: result.success ? 25 : 0
+        };
+    }
+
+    const mergeResult = gitCommands.merge([remoteSha]);
+    return {
+        success: mergeResult.success,
+        message: (mergeResult.message || '') + '\n(note: pull merge is simulated in Git Wizard Academy)',
+        xp: mergeResult.success ? 25 : 0
+    };
 };
 
 gitCommands.push = async function(args) {
@@ -1900,7 +2095,44 @@ gitCommands.push = async function(args) {
             xp: 25
         };
     }
-    return { success: true, message: 'To /repo.git\n   a8949f9..3b2a0c5  main -> main\n(note: push is simulated in Git Wizard Academy)', xp: 25 };
+    const state = ensureGitState();
+    const plain = args.filter((a) => !a.startsWith('-'));
+    const setUpstream = args.includes('-u') || args.includes('--set-upstream');
+    const remoteName = plain[0] || 'origin';
+    const localBranch = plain[1] || state.currentBranch;
+    const remoteBranch = plain[2] || localBranch;
+
+    if (!(localBranch in state.refs)) {
+        return { success: false, message: "error: src refspec " + localBranch + " does not match any", xp: 0 };
+    }
+    const remote = state.remotes[remoteName];
+    if (!remote) return { success: false, message: "fatal: '" + remoteName + "' does not appear to be a git repository", xp: 0 };
+    const localSha = state.refs[localBranch] || null;
+    if (!localSha) return { success: false, message: 'error: failed to push some refs (no commits yet)', xp: 0 };
+    const remoteSha = remote.branches[remoteBranch] || null;
+
+    if (remoteSha && remoteSha !== localSha) {
+        const localAnc = getAncestors(state, localSha);
+        if (!localAnc.has(remoteSha)) {
+            return {
+                success: false,
+                message: '! [rejected]        ' + localBranch + ' -> ' + remoteBranch + ' (non-fast-forward)\nerror: failed to push some refs to ' + (remote.pushUrl || '/repo.git'),
+                xp: 0
+            };
+        }
+    }
+
+    remote.branches[remoteBranch] = localSha;
+    state.remoteRefs['refs/remotes/' + remoteName + '/' + remoteBranch] = localSha;
+    if (setUpstream || !state.tracking[localBranch]) {
+        state.tracking[localBranch] = { remote: remoteName, merge: 'refs/heads/' + remoteBranch };
+    }
+    const delta = countAheadBehind(state, localSha, remoteSha);
+    return {
+        success: true,
+        message: 'To ' + (remote.pushUrl || '/repo.git') + '\n   ' + (remoteSha ? remoteSha.slice(0, 7) : '0000000') + '..' + localSha.slice(0, 7) + '  ' + localBranch + ' -> ' + remoteBranch + '\n(branch status: ahead ' + delta.ahead + ', behind ' + delta.behind + ')\n(note: push is simulated in Git Wizard Academy)',
+        xp: 25
+    };
 };
 
 // Export
