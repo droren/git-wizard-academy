@@ -6,6 +6,7 @@
 
 (function () {
     const hasWindow = typeof window !== 'undefined';
+    const BRANCH_PROTECTED_TIERS = ['advanced', 'collab'];
 
     function hasGitIdentity(state) {
         const gitState = state.gitState || {};
@@ -46,6 +47,100 @@
         return history.some((c) => String(c).toLowerCase().includes(String(token).toLowerCase()));
     }
 
+    function gitEvents(state) {
+        return Array.isArray(state.gitEventHistory) ? state.gitEventHistory : [];
+    }
+
+    function successfulGitEvents(state, command) {
+        return gitEvents(state).filter((event) => {
+            if (!event || event.success !== true) return false;
+            if (!command) return true;
+            return event.command === command;
+        });
+    }
+
+    function currentTierKey(state) {
+        if (state && state.levelContext && state.levelContext.tierKey) return String(state.levelContext.tierKey).toLowerCase();
+        if (state && state.currentTierKey) return String(state.currentTierKey).toLowerCase();
+        if (state && state.currentTier) return String(state.currentTier).toLowerCase();
+        if (hasWindow && Array.isArray(window.lessons) && Number.isFinite(state.currentLevel)) {
+            const lesson = window.lessons[state.currentLevel];
+            if (lesson && lesson.tierKey) return String(lesson.tierKey).toLowerCase();
+        }
+        return '';
+    }
+
+    function expectedScopePaths(state) {
+        const levelContext = state.levelContext || {};
+        const direct = Array.isArray(levelContext.expectedStageScope) ? levelContext.expectedStageScope : null;
+        const legacy = Array.isArray(levelContext.expectedStagedFiles) ? levelContext.expectedStagedFiles : null;
+        return (direct || legacy || []).map((v) => String(v)).sort();
+    }
+
+    function stagedSetMatchesExpectedScope(state) {
+        const expected = expectedScopePaths(state);
+        const stageEvents = successfulGitEvents(state, 'add');
+        if (!stageEvents.length) return false;
+        const latest = stageEvents[stageEvents.length - 1];
+        const staged = Array.isArray(latest.stagedFilesAfter)
+            ? latest.stagedFilesAfter.map((v) => String(v)).sort()
+            : [];
+
+        if (!expected.length) return staged.length > 0 || !!(state.flags && state.flags.stagedOnce);
+        if (staged.length !== expected.length) return false;
+        return staged.every((path, idx) => path === expected[idx]);
+    }
+
+    function commitAfterStagingWithQuality(state) {
+        const events = gitEvents(state);
+        const commitIndex = events.findIndex((event) => event && event.success === true && event.command === 'commit');
+        if (commitIndex === -1) return commitsSinceLevelStart(state) >= 1;
+
+        const commitEvent = events[commitIndex] || {};
+        const stageBeforeCommit = events.slice(0, commitIndex).some((event) => event && event.success === true && event.command === 'add');
+        const acceptable = commitEvent.commit && commitEvent.commit.messageQuality === 'acceptable';
+        return stageBeforeCommit && !!acceptable;
+    }
+
+    function branchPolicyAllowsCommit(state) {
+        const tierKey = currentTierKey(state);
+        const enforce = BRANCH_PROTECTED_TIERS.some((token) => tierKey.includes(token));
+        if (!enforce) return true;
+
+        const commitEvents = successfulGitEvents(state, 'commit');
+        if (!commitEvents.length) return commitsSinceLevelStart(state) >= 1;
+        return commitEvents.every((event) => {
+            const branch = event.branchAfter || (event.branch && event.branch.after) || '';
+            return branch !== 'main';
+        });
+    }
+
+    function validMergeOrRebaseSequencing(state) {
+        const events = gitEvents(state);
+        const transitionEvents = events.filter((event) =>
+            event &&
+            event.success === true &&
+            (event.command === 'merge' || event.command === 'rebase')
+        );
+
+        if (!transitionEvents.length) {
+            return !!(state.flags && state.flags.ranMerge && state.flags.ranRebaseBasic);
+        }
+
+        const mergeEvent = transitionEvents.find((event) => event.command === 'merge');
+        const rebaseEvent = transitionEvents.find((event) => event.command === 'rebase');
+        if (!mergeEvent || !rebaseEvent) return false;
+
+        const mergeSource = mergeEvent.sourceBranch;
+        const mergeTarget = mergeEvent.targetBranch || mergeEvent.branchBefore;
+        const rebaseUpstream = rebaseEvent.upstreamRef;
+        const rebaseBranch = rebaseEvent.targetBranch || rebaseEvent.branchBefore;
+
+        if (!mergeSource || !mergeTarget || mergeSource === mergeTarget) return false;
+        if (!rebaseUpstream || !rebaseBranch || rebaseUpstream === rebaseBranch) return false;
+        return true;
+    }
+
     function hasAliasConfig(state) {
         const gitState = state.gitState || {};
         const localCfg = (gitState.config && gitState.config.local) || {};
@@ -63,11 +158,10 @@
                 return !!(state.flags && state.flags.repoInited) || !!(hasWindow && window.fileSystemModule && window.fileSystemModule.exists('.git/config'));
             },
             function (state) {
-                const index = (state.gitState && state.gitState.index) || {};
-                return Object.keys(index).length > 0 || !!(state.flags && state.flags.stagedOnce);
+                return stagedSetMatchesExpectedScope(state);
             },
             function (state) {
-                return commitsSinceLevelStart(state) >= 1;
+                return commitAfterStagingWithQuality(state) && branchPolicyAllowsCommit(state);
             }
         ],
         1: [
@@ -133,7 +227,7 @@
         ],
         5: [
             function (state) {
-                return !!(state.flags && state.flags.ranMerge) && !!(state.flags && state.flags.ranRebaseBasic);
+                return validMergeOrRebaseSequencing(state);
             },
             function (state) {
                 return !!(state.flags && state.flags.ranRebaseBasic);
@@ -200,7 +294,15 @@
         return !!levelRules[objectiveIndex](state);
     }
 
-    const api = { evaluateObjective };
+    const api = {
+        evaluateObjective,
+        validators: {
+            stagedSetMatchesExpectedScope,
+            commitAfterStagingWithQuality,
+            branchPolicyAllowsCommit,
+            validMergeOrRebaseSequencing
+        }
+    };
 
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = api;
