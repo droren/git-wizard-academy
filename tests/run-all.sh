@@ -23,5 +23,6 @@ node tests/export-repo.test.js
 node tests/export-bridge.test.js
 node tests/live-github.test.js
 node tests/detached-head.test.js
+node tests/git-commands.test.js
 
 echo "all checks passed"
