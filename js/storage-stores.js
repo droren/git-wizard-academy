@@ -7,6 +7,7 @@
 (function () {
     const KEYS = {
         config: 'gwa_git_config_v1',
+        gameSettings: 'gwa_game_settings_v1',
         repo: 'gwa_repo_state_v1',
         lesson: 'gwa_lesson_state_v1',
         certificates: 'gwa_certificate_state_v1',
@@ -44,6 +45,19 @@
             cfg[key] = String(value);
             this.save(cfg);
             return true;
+        }
+    };
+
+    const gameSettingsStore = {
+        load: function () {
+            return safeParse(localStorage.getItem(KEYS.gameSettings) || '{}', {});
+        },
+        save: function (settings) {
+            localStorage.setItem(KEYS.gameSettings, JSON.stringify(settings || {}));
+            return true;
+        },
+        clear: function () {
+            localStorage.removeItem(KEYS.gameSettings);
         }
     };
 
@@ -106,8 +120,42 @@
         }
     };
 
+    function migrateAudioSettingsOutOfGitConfig() {
+        const legacyKeys = [
+            'audio.enabled',
+            'audio.musicEnabled',
+            'audio.sfxEnabled',
+            'audio.sfxVolume',
+            'audio.musicVolume',
+            'audio.selectedMusic'
+        ];
+        const gitCfg = configStore.load();
+        const settings = gameSettingsStore.load();
+        let changed = false;
+        let audioChanged = false;
+
+        legacyKeys.forEach(function (key) {
+            if (Object.prototype.hasOwnProperty.call(gitCfg, key)) {
+                settings[key] = gitCfg[key];
+                delete gitCfg[key];
+                changed = true;
+                audioChanged = true;
+            }
+        });
+
+        if (audioChanged) {
+            gameSettingsStore.save(settings);
+        }
+        if (changed) {
+            configStore.save(gitCfg);
+        }
+    }
+
+    migrateAudioSettingsOutOfGitConfig();
+
     window.storageStores = { KEYS };
     window.configStore = configStore;
+    window.gameSettingsStore = gameSettingsStore;
     window.repoStore = repoStore;
     window.lessonStore = lessonStore;
     window.certificateStore = certificateStore;

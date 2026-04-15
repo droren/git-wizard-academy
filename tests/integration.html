@@ -145,7 +145,7 @@
         await exec('git commit -m "main edit"');
         await exec('git merge feature');
         await exec('cat app.js');
-        await exec('echo "resolved" > app.js');
+        await exec('echo \'const mode = "merged"; console.log(mode + " timeline");\' > app.js');
         await exec('git add app.js');
         await exec('git commit -m "resolve conflict"');
       }
