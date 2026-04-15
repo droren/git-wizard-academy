@@ -127,6 +127,81 @@ function ensureGitState() {
     return s;
 }
 
+function ensureGitEventHistory() {
+    window.gameState.gitEventHistory = Array.isArray(window.gameState.gitEventHistory)
+        ? window.gameState.gitEventHistory
+        : [];
+    return window.gameState.gitEventHistory;
+}
+
+function captureGitSnapshot() {
+    const state = (window.gameState && window.gameState.gitState) || {};
+    return {
+        currentBranch: state.currentBranch || null,
+        branches: Array.isArray(state.branches) ? state.branches.slice() : [],
+        index: deepClone(state.index || {}),
+        mergeInProgress: !!state.mergeInProgress
+    };
+}
+
+function lessonTierKeyForState() {
+    const game = window.gameState || {};
+    if (game.levelContext && game.levelContext.tierKey) return game.levelContext.tierKey;
+    if (Array.isArray(window.lessons) && Number.isFinite(game.currentLevel)) {
+        const lesson = window.lessons[game.currentLevel];
+        if (lesson && lesson.tierKey) return lesson.tierKey;
+    }
+    return '';
+}
+
+function buildGitEvent(command, args, before, result) {
+    const after = captureGitSnapshot();
+    const event = {
+        type: 'git-command',
+        timestamp: new Date().toISOString(),
+        command: command,
+        args: Array.isArray(args) ? args.slice() : [],
+        success: !!(result && result.success),
+        tierKey: lessonTierKeyForState(),
+        branchBefore: before.currentBranch,
+        branchAfter: after.currentBranch,
+        branch: {
+            before: before.currentBranch,
+            after: after.currentBranch
+        },
+        stagedFilesBefore: Object.keys(before.index || {}).sort(),
+        stagedFilesAfter: Object.keys(after.index || {}).sort()
+    };
+
+    if (command === 'commit') {
+        const commitMessage = parseCommitMessage(Array.isArray(args) ? args : []);
+        const quality = validateCommitMessage(commitMessage);
+        event.commit = {
+            message: commitMessage,
+            messageQuality: quality.ok ? 'acceptable' : 'rejected',
+            qualityReason: quality.ok ? '' : quality.reason
+        };
+    }
+
+    if (command === 'merge') {
+        event.sourceBranch = Array.isArray(args) && args[0] ? args[0] : '';
+        event.targetBranch = before.currentBranch;
+    }
+
+    if (command === 'rebase') {
+        const plainArgs = (Array.isArray(args) ? args : []).filter((arg) => !String(arg).startsWith('-'));
+        event.upstreamRef = plainArgs[0] || '';
+        event.targetBranch = before.currentBranch;
+    }
+
+    return event;
+}
+
+function appendGitEvent(command, args, before, result) {
+    const history = ensureGitEventHistory();
+    history.push(buildGitEvent(command, args, before, result));
+}
+
 function getHeadCommit(state) {
     const sha = state.headDetached ? (state.detachedHeadSha || null) : (state.refs[state.currentBranch] || null);
     return sha ? state.commitBySha[sha] || null : null;
@@ -2026,6 +2101,32 @@ gitCommands.push = async function(args) {
     }
     return { success: true, message: 'To /repo.git\n   a8949f9..3b2a0c5  main -> main\n(note: push is simulated in Git Wizard Academy)', xp: 25 };
 };
+
+Object.keys(gitCommands).forEach((name) => {
+    if (typeof gitCommands[name] !== 'function') return;
+    if (name === '_hash') return;
+    if (gitCommands[name].__eventWrapped) return;
+
+    const original = gitCommands[name];
+    const wrapped = function(args) {
+        const before = captureGitSnapshot();
+        const finalArgs = Array.isArray(args) ? args : [];
+        const result = original.call(this, finalArgs);
+
+        if (result && typeof result.then === 'function') {
+            return result.then((resolved) => {
+                appendGitEvent(name, finalArgs, before, resolved || {});
+                return resolved;
+            });
+        }
+
+        appendGitEvent(name, finalArgs, before, result || {});
+        return result;
+    };
+
+    wrapped.__eventWrapped = true;
+    gitCommands[name] = wrapped;
+});
 
 // Export
 window.gitCommands = gitCommands;
