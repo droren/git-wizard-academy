@@ -1,20 +1,13 @@
 (function () {
-    const PRELUDE_MS = 4600;
+    const PROCESSION_SETTLE_MS = 700;
     const CRAWL_MS = 36000;
     const CHEER_MS = 2200;
     const FADE_MS = 900;
-    const TOTAL_MS = PRELUDE_MS + CRAWL_MS + CHEER_MS + FADE_MS;
 
     const CEREMONY_CAST = [
         'adventurer', 'female', 'alienBlue', 'alienGreen', 'alienPink',
         'zombie', 'slime', 'snail', 'fly', 'bee', 'frog', 'spider', 'mouse'
     ];
-
-    const CATEGORY_MAP = {
-        academy: ['adventurer', 'female', 'zombie'],
-        aliens: ['alienBlue', 'alienGreen', 'alienPink'],
-        critters: ['slime', 'snail', 'fly', 'bee', 'frog', 'spider', 'mouse']
-    };
 
     const SPRITES = {
         adventurer: makeSprite('academy', 'adventurer', 34, 44),
@@ -49,7 +42,6 @@
     const state = {
         overlay: null,
         stage: null,
-        info: null,
         actors: [],
         props: [],
         phase: 'idle',
@@ -57,6 +49,8 @@
         paused: false,
         lastTime: 0,
         elapsed: 0,
+        phaseElapsed: 0,
+        phaseStartedAt: 0,
         rafId: 0,
         lastScrollCueAt: 0,
         lastCheerCueAt: 0,
@@ -64,9 +58,10 @@
         crawlRect: null,
         stageW: 0,
         stageH: 0,
-        category: 'academy',
         readyPromise: null,
-        visibilityBound: false
+        visibilityBound: false,
+        processionReadyFired: false,
+        finaleFired: false
     };
 
     function makeSprite(group, name, w, h) {
@@ -110,7 +105,6 @@
     function ensureDom() {
         state.overlay = document.getElementById('introOverlay');
         state.stage = document.getElementById('introSpriteStage');
-        state.info = document.getElementById('introSpriteSummary');
         return !!(state.overlay && state.stage);
     }
 
@@ -143,22 +137,6 @@
         return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
     }
 
-    function getCategoryCast() {
-        return CATEGORY_MAP[state.category] || CEREMONY_CAST;
-    }
-
-    function introSummaryText() {
-        if (state.category === 'aliens') return 'Space runners keep the intro lively with lighter motion and cleaner timing.';
-        if (state.category === 'critters') return 'Chaos critters add a playful layer without crowding the briefing.';
-        return 'Academy crew leads the ceremony with focused motion before the crawl begins.';
-    }
-
-    function updateChipState() {
-        document.querySelectorAll('.intro-showcase-chip[data-intro-category]').forEach(function (chip) {
-            chip.classList.toggle('active', chip.getAttribute('data-intro-category') === state.category);
-        });
-    }
-
     function clearNodeList(list) {
         list.forEach(function (item) {
             if (item.element && item.element.parentNode) item.element.parentNode.removeChild(item.element);
@@ -173,7 +151,7 @@
         const leftX = crawl ? crawl.left - 92 : state.stageW * 0.18;
         const rightX = crawl ? crawl.right + 58 : state.stageW * 0.76;
         const topY = logo ? logo.bottom + 10 : state.stageH * 0.22;
-        state.sideTargets = getCategoryCast().map(function (name, index) {
+        state.sideTargets = CEREMONY_CAST.map(function (name, index) {
             const isLeft = index % 2 === 0;
             const columnIndex = Math.floor(index / 2);
             const y = topY + columnIndex * (prefersReducedMotion() ? 38 : 34);
@@ -264,10 +242,6 @@
         state.sideTargets.forEach(function (spec, index) {
             createActor(spec, index);
         });
-        if (state.info) {
-            state.info.textContent = introSummaryText();
-        }
-        updateChipState();
     }
 
     function pickFrame(actor) {
@@ -281,6 +255,17 @@
 
     function allArrived() {
         return state.actors.every(actorArrived);
+    }
+
+    function setPhase(nextPhase) {
+        if (state.phase === nextPhase) return;
+        state.phase = nextPhase;
+        state.phaseStartedAt = state.elapsed;
+        state.phaseElapsed = 0;
+    }
+
+    function dispatchIntroEvent(name) {
+        document.dispatchEvent(new CustomEvent(name));
     }
 
     function processionBehavior(actor, dt) {
@@ -482,20 +467,34 @@
     }
 
     function updatePhase() {
-        if (state.elapsed < PRELUDE_MS) {
-            state.phase = 'procession';
-            if (state.info) state.info.textContent = 'The gathered crews line the hall as the chronicle prepares to rise.';
-        } else if (state.elapsed < PRELUDE_MS + CRAWL_MS) {
-            state.phase = 'scroll';
-            if (state.info) state.info.textContent = 'The chronicle is now rolling. Watch the attendants fidget, yawn, and try to stay ceremonial.';
-        } else if (state.elapsed < PRELUDE_MS + CRAWL_MS + CHEER_MS) {
-            state.phase = 'cheer';
-            if (state.info) state.info.textContent = 'The chronicle is complete. Everyone cheers before the academy opens its gates.';
-        } else if (state.elapsed < TOTAL_MS) {
-            state.phase = 'fade';
-            if (state.info) state.info.textContent = 'The ceremony fades as the academy opens.';
-        } else {
-            state.phase = 'fade';
+        state.phaseElapsed = state.elapsed - state.phaseStartedAt;
+        if (state.phase === 'procession') {
+            if (allArrived() && state.phaseElapsed >= PROCESSION_SETTLE_MS) {
+                setPhase('scroll');
+                if (!state.processionReadyFired) {
+                    state.processionReadyFired = true;
+                    dispatchIntroEvent('gwa:intro-procession-ready');
+                }
+            }
+            return;
+        }
+
+        if (state.phase === 'scroll' && state.phaseElapsed >= CRAWL_MS) {
+            setPhase('cheer');
+            return;
+        }
+
+        if (state.phase === 'cheer' && state.phaseElapsed >= CHEER_MS) {
+            setPhase('fade');
+            if (!state.finaleFired) {
+                state.finaleFired = true;
+                dispatchIntroEvent('gwa:intro-finale');
+            }
+            return;
+        }
+
+        if (state.phase === 'fade' && state.phaseElapsed >= FADE_MS) {
+            dispatchIntroEvent('gwa:intro-complete');
         }
     }
 
@@ -574,30 +573,9 @@
         document.addEventListener('visibilitychange', function () {
             state.paused = document.hidden;
         });
-        document.querySelectorAll('.intro-showcase-chip[data-intro-category]').forEach(function (chip) {
-            chip.addEventListener('click', function () {
-                const nextCategory = chip.getAttribute('data-intro-category') || 'academy';
-                if (nextCategory === state.category) return;
-                state.category = nextCategory;
-                if (state.active) {
-                    setupCeremony();
-                } else {
-                    updateChipState();
-                    if (state.info) state.info.textContent = introSummaryText();
-                }
-            });
-        });
     }
 
     window.IntroSpriteShowcase = {
-        getPreludeDelay: function () {
-            return PRELUDE_MS;
-        },
-
-        getTotalRuntime: function () {
-            return TOTAL_MS;
-        },
-
         getMusicCue: musicCue,
 
         prime: preloadShowcaseAssets,
@@ -605,8 +583,6 @@
         start: function () {
             if (!ensureDom()) return;
             bindVisibility();
-            updateChipState();
-            if (state.info) state.info.textContent = 'Syncing sprite sheets...';
             preloadShowcaseAssets().then(function () {
                 if (!ensureDom()) return;
                 stop();
@@ -614,9 +590,13 @@
                 state.paused = document.hidden;
                 state.lastTime = 0;
                 state.elapsed = 0;
+                state.phaseElapsed = 0;
+                state.phaseStartedAt = 0;
                 state.lastScrollCueAt = 0;
                 state.lastCheerCueAt = 0;
                 state.phase = 'procession';
+                state.processionReadyFired = false;
+                state.finaleFired = false;
                 setupCeremony();
                 state.rafId = requestAnimationFrame(tick);
             });

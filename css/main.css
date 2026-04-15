@@ -276,10 +276,16 @@ body.glitch {
     display: flex;
     justify-content: center;
     transform-style: preserve-3d;
+    opacity: 0;
+    transition: opacity 0.35s ease;
 }
 
 .intro-crawl.animating .intro-crawl-inner {
     animation: crawlRise 36s linear forwards;
+}
+
+.intro-crawl.animating {
+    opacity: 1;
 }
 
 .intro-crawl-inner {
@@ -320,7 +326,9 @@ body.glitch {
 }
 
 .intro-finale {
-    display: none;
+    display: block;
+    opacity: 0;
+    pointer-events: none;
     position: absolute;
     left: 50%;
     top: 50%;
@@ -335,10 +343,13 @@ body.glitch {
         radial-gradient(circle at top, rgba(255, 229, 143, 0.16), transparent 54%);
     box-shadow: 0 24px 60px rgba(0,0,0,0.42);
     text-align: center;
+    transition: opacity 0.45s ease, transform 0.45s ease;
 }
 
 .intro-finale.show {
-    display: block;
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate(-50%, -50%) scale(1);
 }
 
 .intro-finale-question {
@@ -353,72 +364,6 @@ body.glitch {
     font-size: 0.88rem;
 }
 
-.intro-sprite-showcase {
-    position: absolute;
-    top: 92px;
-    right: 24px;
-    z-index: 4;
-    width: min(420px, 42vw);
-    margin-top: 0;
-    padding: 14px 16px 16px;
-    border-radius: 24px;
-    border: 1px solid rgba(124, 199, 255, 0.16);
-    background:
-        linear-gradient(180deg, rgba(7, 17, 29, 0.88), rgba(9, 12, 22, 0.88)),
-        radial-gradient(circle at top, rgba(124, 199, 255, 0.12), transparent 50%);
-    box-shadow: 0 20px 55px rgba(0, 0, 0, 0.34);
-    backdrop-filter: blur(8px);
-}
-
-.intro-sprite-showcase-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 16px;
-    margin-bottom: 10px;
-}
-
-.intro-showcase-kicker {
-    font-size: 0.74rem;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: #7cc7ff;
-}
-
-.intro-showcase-title {
-    margin-top: 4px;
-    font-size: 1rem;
-    color: #f6f7ff;
-}
-
-.intro-showcase-chips {
-    display: none;
-}
-
-.intro-showcase-chip {
-    border: 1px solid rgba(124, 199, 255, 0.2);
-    background: rgba(12, 20, 34, 0.84);
-    color: #dbe7ff;
-    border-radius: 999px;
-    padding: 8px 12px;
-    cursor: pointer;
-    transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
-}
-
-.intro-showcase-chip:hover,
-.intro-showcase-chip.active {
-    transform: translateY(-1px);
-    border-color: rgba(255, 229, 143, 0.42);
-    background: rgba(34, 43, 69, 0.96);
-}
-
-.intro-sprite-summary {
-    min-height: 24px;
-    margin-bottom: 12px;
-    color: rgba(219, 231, 255, 0.78);
-    font-size: 0.92rem;
-}
-
 .intro-sprite-stage {
     position: absolute;
     inset: 0;
@@ -428,6 +373,21 @@ body.glitch {
     background:
         linear-gradient(180deg, rgba(27, 55, 103, 0.14), rgba(5, 7, 14, 0.72)),
         radial-gradient(circle at 20% 10%, rgba(255, 229, 143, 0.18), transparent 28%);
+}
+
+.intro-overlay.finale-mode {
+    background:
+        radial-gradient(circle at top, rgba(88, 166, 255, 0.03), transparent 22%),
+        linear-gradient(180deg, #02060f 0%, #03050a 50%, #000000 100%);
+}
+
+.intro-overlay.finale-mode .intro-header,
+.intro-overlay.finale-mode .intro-logo-block,
+.intro-overlay.finale-mode .intro-crawl-frame,
+.intro-overlay.finale-mode .intro-controls,
+.intro-overlay.finale-mode .intro-sprite-stage {
+    opacity: 0;
+    transition: opacity 0.45s ease;
 }
 
 .intro-stage-layer {
@@ -2378,23 +2338,8 @@ body.glitch {
         padding-top: 86px;
     }
 
-    .intro-sprite-showcase-header {
-        flex-direction: column;
-    }
-
-    .intro-showcase-chips {
-        justify-content: flex-start;
-    }
-
     .intro-sprite-stage {
         inset: 0;
-    }
-
-    .intro-sprite-showcase {
-        top: 84px;
-        left: 18px;
-        right: 18px;
-        width: auto;
     }
 
     .header-content {
@@ -3365,16 +3310,6 @@ body {
     backdrop-filter: blur(10px);
 }
 
-.intro-sprite-showcase {
-    width: min(100%, 780px);
-    border: 1px solid rgba(123, 155, 207, 0.16);
-    box-shadow: 0 18px 40px rgba(2, 10, 22, 0.24);
-}
-
-.intro-sprite-summary {
-    min-height: 3.2em;
-}
-
 .intro-sprite-stage {
     opacity: 0.92;
     contain: layout paint;
@@ -3389,17 +3324,6 @@ body {
 
 .intro-sprite-actor {
     transform-origin: center bottom;
-}
-
-.intro-showcase-chip {
-    min-height: 36px;
-    cursor: pointer;
-}
-
-.intro-showcase-chip:hover,
-.intro-showcase-chip:focus-visible {
-    border-color: rgba(78, 203, 255, 0.56);
-    box-shadow: 0 8px 18px rgba(78, 203, 255, 0.18);
 }
 
 .character-stage {
@@ -3431,10 +3355,6 @@ body {
 }
 
 @media (max-width: 900px) {
-    .intro-sprite-showcase {
-        width: min(100%, 520px);
-    }
-
     .intro-sprite-stage {
         opacity: 0.76;
     }

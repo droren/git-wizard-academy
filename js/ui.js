@@ -559,7 +559,9 @@ const ui = {
             btn.addEventListener('click', this.pickResolverChoice.bind(this));
         });
         document.addEventListener('keydown', this.handleGlobalKeydown.bind(this));
-        
+        document.addEventListener('gwa:intro-procession-ready', this.handleIntroProcessionReady.bind(this));
+        document.addEventListener('gwa:intro-finale', this.handleIntroFinale.bind(this));
+
         // Auto-scroll to bottom on new output
         this.observeTerminal();
         
@@ -735,6 +737,7 @@ const ui = {
         document.body.classList.add('intro-mode');
         this.setAppShellVisible(false);
         overlay.classList.remove('hidden');
+        overlay.classList.remove('finale-mode');
         overlay.classList.add('show');
         if (finale) finale.classList.remove('show');
         crawl.classList.remove('animating');
@@ -744,21 +747,7 @@ const ui = {
             window.IntroSpriteShowcase.start();
         }
         this.playIntroMusic();
-        const preludeDelay = window.IntroSpriteShowcase && window.IntroSpriteShowcase.getPreludeDelay
-            ? window.IntroSpriteShowcase.getPreludeDelay()
-            : 0;
-        setTimeout(function () {
-            if (!ui.introVisible) return;
-            crawl.classList.remove('animating');
-            overlay.offsetHeight;
-            crawl.classList.add('animating');
-        }, preludeDelay);
-
         if (this.introCloseTimer) clearTimeout(this.introCloseTimer);
-        const totalRuntime = window.IntroSpriteShowcase && window.IntroSpriteShowcase.getTotalRuntime
-            ? window.IntroSpriteShowcase.getTotalRuntime()
-            : 37000;
-        this.introCloseTimer = setTimeout(this.showIntroReadyPrompt.bind(this), totalRuntime);
     },
 
     replayIntro: function() {
@@ -769,7 +758,16 @@ const ui = {
         this.finishIntro();
     },
 
-    showIntroReadyPrompt: function() {
+    handleIntroProcessionReady: function() {
+        const overlay = document.getElementById('introOverlay');
+        const crawl = document.getElementById('introCrawl');
+        if (!this.introVisible || !overlay || !crawl) return;
+        crawl.classList.remove('animating');
+        overlay.offsetHeight;
+        crawl.classList.add('animating');
+    },
+
+    handleIntroFinale: function() {
         const finale = document.getElementById('introFinale');
         const crawl = document.getElementById('introCrawl');
         const overlay = document.getElementById('introOverlay');
@@ -779,8 +777,15 @@ const ui = {
         }
         this.introReadyToStart = true;
         if (crawl) crawl.classList.remove('animating');
-        if (finale) finale.classList.add('show');
-        if (overlay) overlay.classList.add('show');
+        if (overlay) overlay.classList.add('finale-mode');
+        if (window.Assets && window.Assets.stopMusic) {
+            window.Assets.stopMusic();
+        }
+        if (finale) {
+            setTimeout(function() {
+                if (ui.introVisible) finale.classList.add('show');
+            }, 320);
+        }
     },
 
     finishIntro: function() {
@@ -794,6 +799,7 @@ const ui = {
         if (overlay) {
             overlay.classList.remove('show');
             overlay.classList.add('hidden');
+            overlay.classList.remove('finale-mode');
         }
         if (window.IntroSpriteShowcase && window.IntroSpriteShowcase.stop) {
             window.IntroSpriteShowcase.stop();
