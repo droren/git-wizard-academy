@@ -1477,19 +1477,44 @@ gitCommands.tag = function(args) {
         return { success: true, message: 'fatal: not a git repository', xp: 0 };
     }
 
-    if (args.length === 0) {
-        return { success: true, message: 'No tags yet', xp: 0 };
-    }
-
-    const tagName = args[0];
-    localStorage.setItem('gwa_tag', 'true');
-    window.gameState.flags = window.gameState.flags || {};
-    window.gameState.flags.ranTag = true;
-
+    const state = ensureGitState();
     state.tags = state.tags || {};
+
+    const listMode = args.length === 0 || args.includes('--list') || args.includes('-l');
+    if (listMode) {
+        const tags = Object.keys(state.tags).sort();
+        return { success: true, message: tags.length ? tags.join('\n') : 'No tags yet', xp: 0 };
+    }
 
     const annotateIndex = args.findIndex((a) => a === '-a');
     const messageIndex = args.findIndex((a) => a === '-m');
+
+    let tagName = '';
+    for (let i = 0; i < args.length; i++) {
+        const token = args[i];
+        if (token === '-a' || token === '--annotate') {
+            if (args[i + 1]) {
+                tagName = args[i + 1];
+                break;
+            }
+            continue;
+        }
+        if (token === '-m' || token === '--message') {
+            i += 1;
+            continue;
+        }
+        if (!token.startsWith('-')) {
+            tagName = token;
+            break;
+        }
+    }
+
+    if (!tagName) {
+        return { success: false, message: 'usage: git tag [-a] <tagname> [-m <message>]', xp: 0 };
+    }
+    localStorage.setItem('gwa_tag', 'true');
+    window.gameState.flags = window.gameState.flags || {};
+    window.gameState.flags.ranTag = true;
     const target = state.refs[state.currentBranch] || null;
     const now = new Date().toISOString();
 
