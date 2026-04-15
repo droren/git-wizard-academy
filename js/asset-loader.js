@@ -250,6 +250,24 @@
         return img;
     }
 
+    function whenImageReady(img) {
+        if (!img) return Promise.resolve(null);
+        if (img.complete && img.naturalWidth > 0) return Promise.resolve(img);
+        if (img._gwaReadyPromise) return img._gwaReadyPromise;
+        img._gwaReadyPromise = new Promise(function (resolve) {
+            function done() {
+                resolve(img);
+            }
+            if (typeof img.addEventListener === 'function') {
+                img.addEventListener('load', done, { once: true });
+                img.addEventListener('error', done, { once: true });
+            } else {
+                resolve(img);
+            }
+        });
+        return img._gwaReadyPromise;
+    }
+
     function preloadAsset(type, name) {
         const manifestName = resolveName(type, name);
         if (!manifestName) return Promise.resolve(null);
@@ -261,7 +279,7 @@
             return Promise.resolve(getMusic(manifestName));
         }
         if (type === 'sprites') {
-            return Promise.resolve(getSprite(manifestName));
+            return whenImageReady(getSprite(manifestName));
         }
         return Promise.resolve(null);
     }
@@ -298,6 +316,10 @@
             cache.sprites[resolved] = imageElement(BASE + manifest.sprites[resolved]);
         }
         return cache.sprites[resolved];
+    }
+
+    function spriteReady(name) {
+        return whenImageReady(getSprite(name));
     }
 
     function clonePlayable(template) {
@@ -519,6 +541,7 @@
         isEnabled,
         setVolumes,
         getSettings: readSettings,
+        spriteReady,
         getActiveMusicKey: function () { return activeMusicKey; },
         getManifest
     };

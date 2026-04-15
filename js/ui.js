@@ -681,6 +681,16 @@ const ui = {
         ];
         const started = Date.now();
         const duration = 1800;
+        const preloadTasks = [];
+        if (window.Assets && window.Assets.preload) {
+            preloadTasks.push(window.Assets.preload({
+                sounds: ['click', 'switch', 'success'],
+                sprites: ['gitknight', 'mergegoblin', 'lintimp', 'cidragon', 'fire', 'exploding', 'skull']
+            }));
+        }
+        if (window.IntroSpriteShowcase && window.IntroSpriteShowcase.prime) {
+            preloadTasks.push(window.IntroSpriteShowcase.prime());
+        }
         if (this.bootTimer) clearInterval(this.bootTimer);
         this.bootTimer = setInterval(function() {
             const elapsed = Date.now() - started;
@@ -690,12 +700,14 @@ const ui = {
             if (pct >= 100) {
                 clearInterval(ui.bootTimer);
                 ui.bootTimer = null;
-                overlay.classList.add('hidden');
-                setTimeout(function() {
-                    overlay.classList.remove('show');
-                    body.classList.remove('booting');
-                    ui.showIntro();
-                }, 650);
+                Promise.allSettled(preloadTasks).finally(function () {
+                    overlay.classList.add('hidden');
+                    setTimeout(function() {
+                        overlay.classList.remove('show');
+                        body.classList.remove('booting');
+                        ui.showIntro();
+                    }, 650);
+                });
             }
         }, 90);
     },

@@ -69,14 +69,20 @@
         characters: [],
         byId: Object.create(null),
         running: false,
+        paused: false,
         raf: 0,
         ambientTimer: 0,
         lastAmbientAt: 0,
-        lastUpdate: 0
+        lastUpdate: 0,
+        visibilityBound: false
     };
 
     function now() {
         return (window.performance && performance.now) ? performance.now() : Date.now();
+    }
+
+    function prefersReducedMotion() {
+        return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
     }
 
     const raf = window.requestAnimationFrame
@@ -296,8 +302,15 @@
     }
 
     function setFrames(char, action) {
+        const nextFrames = buildFrames(char.type, action);
+        const previousFirst = char.frames && char.frames[0] ? char.frames[0] : '';
+        const nextFirst = nextFrames && nextFrames[0] ? nextFrames[0] : '';
+        if (char.action === action && previousFirst === nextFirst && Array.isArray(char.frames) && char.frames.length === nextFrames.length) {
+            return;
+        }
+
         char.action = action;
-        char.frames = buildFrames(char.type, action);
+        char.frames = nextFrames;
         char.frameIndex = 0;
         if (char.img && char.frames[0]) {
             char.img.src = char.frames[0];
@@ -367,7 +380,7 @@
         el.dataset.characterId = id;
         el.style.zIndex = String((options && options.zIndex) || 20);
         el.style.position = 'absolute';
-        el.style.pointerEvents = 'auto';
+        el.style.pointerEvents = options && options.interactive ? 'auto' : 'none';
         el.style.left = '0px';
         el.style.top = '0px';
         el.style.width = FRAME_SIZE + 'px';
@@ -574,7 +587,7 @@
             applyStateClass(char);
         };
 
-        if (el.addEventListener) {
+        if (options && options.interactive && el.addEventListener) {
             el.addEventListener('click', function () {
                 char.react('poke');
             });
@@ -638,6 +651,11 @@
     function update(timestamp) {
         if (!state.running) return;
         const time = typeof timestamp === 'number' ? timestamp : now();
+        if (state.paused || document.hidden) {
+            state.lastUpdate = time;
+            state.raf = raf(update);
+            return;
+        }
         const dt = state.lastUpdate ? Math.min((time - state.lastUpdate) / 1000, 0.06) : 0.016;
         state.lastUpdate = time;
 
@@ -653,14 +671,33 @@
     function startLoop() {
         if (state.running) return;
         state.running = true;
+        state.paused = document.hidden;
         state.lastUpdate = now();
         state.raf = raf(update);
     }
 
     function stopLoop() {
         state.running = false;
+        state.paused = false;
         if (state.raf) caf(state.raf);
         state.raf = 0;
+    }
+
+    function preloadCoreSprites() {
+        if (window.Assets && window.Assets.preload) {
+            return window.Assets.preload({
+                sprites: ['gitknight', 'mergegoblin', 'lintimp', 'cidragon', 'fire', 'exploding', 'skull']
+            });
+        }
+        return Promise.resolve([]);
+    }
+
+    function bindVisibility() {
+        if (state.visibilityBound) return;
+        state.visibilityBound = true;
+        document.addEventListener('visibilitychange', function () {
+            state.paused = document.hidden;
+        });
     }
 
     function preloadLevel(levelIndex) {
@@ -816,6 +853,8 @@
 
     function init() {
         ensureStage();
+        bindVisibility();
+        preloadCoreSprites();
         startLoop();
     }
 

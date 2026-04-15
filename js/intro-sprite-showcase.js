@@ -10,6 +10,12 @@
         'zombie', 'slime', 'snail', 'fly', 'bee', 'frog', 'spider', 'mouse'
     ];
 
+    const CATEGORY_MAP = {
+        academy: ['adventurer', 'female', 'zombie'],
+        aliens: ['alienBlue', 'alienGreen', 'alienPink'],
+        critters: ['slime', 'snail', 'fly', 'bee', 'frog', 'spider', 'mouse']
+    };
+
     const SPRITES = {
         adventurer: makeSprite('academy', 'adventurer', 34, 44),
         female: makeSprite('academy', 'female', 34, 44),
@@ -48,6 +54,7 @@
         props: [],
         phase: 'idle',
         active: false,
+        paused: false,
         lastTime: 0,
         elapsed: 0,
         rafId: 0,
@@ -56,7 +63,10 @@
         sideTargets: [],
         crawlRect: null,
         stageW: 0,
-        stageH: 0
+        stageH: 0,
+        category: 'academy',
+        readyPromise: null,
+        visibilityBound: false
     };
 
     function makeSprite(group, name, w, h) {
@@ -129,6 +139,26 @@
         if (window.Assets && window.Assets.playSound) window.Assets.playSound(name);
     }
 
+    function prefersReducedMotion() {
+        return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    }
+
+    function getCategoryCast() {
+        return CATEGORY_MAP[state.category] || CEREMONY_CAST;
+    }
+
+    function introSummaryText() {
+        if (state.category === 'aliens') return 'Space runners keep the intro lively with lighter motion and cleaner timing.';
+        if (state.category === 'critters') return 'Chaos critters add a playful layer without crowding the briefing.';
+        return 'Academy crew leads the ceremony with focused motion before the crawl begins.';
+    }
+
+    function updateChipState() {
+        document.querySelectorAll('.intro-showcase-chip[data-intro-category]').forEach(function (chip) {
+            chip.classList.toggle('active', chip.getAttribute('data-intro-category') === state.category);
+        });
+    }
+
     function clearNodeList(list) {
         list.forEach(function (item) {
             if (item.element && item.element.parentNode) item.element.parentNode.removeChild(item.element);
@@ -143,10 +173,10 @@
         const leftX = crawl ? crawl.left - 92 : state.stageW * 0.18;
         const rightX = crawl ? crawl.right + 58 : state.stageW * 0.76;
         const topY = logo ? logo.bottom + 10 : state.stageH * 0.22;
-        state.sideTargets = CEREMONY_CAST.map(function (name, index) {
+        state.sideTargets = getCategoryCast().map(function (name, index) {
             const isLeft = index % 2 === 0;
             const columnIndex = Math.floor(index / 2);
-            const y = topY + columnIndex * 34;
+            const y = topY + columnIndex * (prefersReducedMotion() ? 38 : 34);
             return {
                 type: name,
                 side: isLeft ? 'left' : 'right',
@@ -235,8 +265,9 @@
             createActor(spec, index);
         });
         if (state.info) {
-            state.info.textContent = 'The ceremony is forming. Watch the crews line up before the chronicle begins.';
+            state.info.textContent = introSummaryText();
         }
+        updateChipState();
     }
 
     function pickFrame(actor) {
@@ -429,7 +460,7 @@
 
     function updateActor(actor, dt) {
         actor.frameTimer += dt;
-        if (actor.frameTimer > 140) {
+        if (actor.frameTimer > (prefersReducedMotion() ? 220 : 140)) {
             actor.frameTimer = 0;
             actor.frameIndex = (actor.frameIndex + 1) % 4;
         }
@@ -470,6 +501,11 @@
 
     function tick(now) {
         if (!state.active) return;
+        if (state.paused || document.hidden) {
+            state.lastTime = now;
+            state.rafId = requestAnimationFrame(tick);
+            return;
+        }
         if (!state.lastTime) state.lastTime = now;
         const dt = Math.min(40, now - state.lastTime || 16);
         state.lastTime = now;
@@ -489,6 +525,7 @@
 
     function stop() {
         state.active = false;
+        state.paused = false;
         if (state.rafId) cancelAnimationFrame(state.rafId);
         state.rafId = 0;
         clearNodeList(state.actors);
@@ -497,6 +534,59 @@
 
     function musicCue() {
         return 'retro';
+    }
+
+    function allSpriteUrls() {
+        const urls = [];
+        Object.keys(SPRITES).forEach(function (key) {
+            const sprite = SPRITES[key];
+            Object.keys(sprite.frames).forEach(function (frameName) {
+                sprite.frames[frameName].forEach(function (url) {
+                    if (urls.indexOf(url) === -1) urls.push(url);
+                });
+            });
+        });
+        Object.keys(PROP_SPRITES).forEach(function (key) {
+            const url = PROP_SPRITES[key].src;
+            if (urls.indexOf(url) === -1) urls.push(url);
+        });
+        return urls;
+    }
+
+    function preloadShowcaseAssets() {
+        if (state.readyPromise) return state.readyPromise;
+        const urls = allSpriteUrls();
+        state.readyPromise = Promise.all(urls.map(function (url) {
+            return new Promise(function (resolve) {
+                const img = new Image();
+                img.decoding = 'async';
+                img.onload = resolve;
+                img.onerror = resolve;
+                img.src = url;
+            });
+        }));
+        return state.readyPromise;
+    }
+
+    function bindVisibility() {
+        if (state.visibilityBound) return;
+        state.visibilityBound = true;
+        document.addEventListener('visibilitychange', function () {
+            state.paused = document.hidden;
+        });
+        document.querySelectorAll('.intro-showcase-chip[data-intro-category]').forEach(function (chip) {
+            chip.addEventListener('click', function () {
+                const nextCategory = chip.getAttribute('data-intro-category') || 'academy';
+                if (nextCategory === state.category) return;
+                state.category = nextCategory;
+                if (state.active) {
+                    setupCeremony();
+                } else {
+                    updateChipState();
+                    if (state.info) state.info.textContent = introSummaryText();
+                }
+            });
+        });
     }
 
     window.IntroSpriteShowcase = {
@@ -510,17 +600,26 @@
 
         getMusicCue: musicCue,
 
+        prime: preloadShowcaseAssets,
+
         start: function () {
             if (!ensureDom()) return;
-            stop();
-            state.active = true;
-            state.lastTime = 0;
-            state.elapsed = 0;
-            state.lastScrollCueAt = 0;
-            state.lastCheerCueAt = 0;
-            state.phase = 'procession';
-            setupCeremony();
-            state.rafId = requestAnimationFrame(tick);
+            bindVisibility();
+            updateChipState();
+            if (state.info) state.info.textContent = 'Syncing sprite sheets...';
+            preloadShowcaseAssets().then(function () {
+                if (!ensureDom()) return;
+                stop();
+                state.active = true;
+                state.paused = document.hidden;
+                state.lastTime = 0;
+                state.elapsed = 0;
+                state.lastScrollCueAt = 0;
+                state.lastCheerCueAt = 0;
+                state.phase = 'procession';
+                setupCeremony();
+                state.rafId = requestAnimationFrame(tick);
+            });
         },
 
         stop: stop
