@@ -51,146 +51,104 @@
         const localCfg = (gitState.config && gitState.config.local) || {};
         const globalCfg = (gitState.config && gitState.config.global) || {};
         const cfg = Object.assign({}, globalCfg, localCfg);
-        return !!(cfg['alias.co'] || cfg['alias.br'] || cfg['alias.st']);
+        return !!Object.keys(cfg).find((k) => /^alias\./.test(k));
+    }
+
+    function remoteSetupDone(state) {
+        const flags = state.flags || {};
+        return !!(
+            flags.remoteOriginConfigured || commandUsed(state, 'git remote add origin')
+        ) && !!(
+            flags.remoteUpstreamConfigured || commandUsed(state, 'git remote add upstream')
+        );
+    }
+
+    function remoteSyncDone(state) {
+        const flags = state.flags || {};
+        return !!(flags.ranPush || commandUsed(state, 'git push'))
+            && !!(flags.ranFetch || commandUsed(state, 'git fetch'))
+            && !!(flags.ranPull || commandUsed(state, 'git pull'));
     }
 
     const strictRules = {
+        // Must-Know
         0: [
-            function (state) {
-                return hasGitIdentity(state);
-            },
-            function (state) {
-                return !!(state.flags && state.flags.repoInited) || !!(hasWindow && window.fileSystemModule && window.fileSystemModule.exists('.git/config'));
-            },
-            function (state) {
+            (state) => hasGitIdentity(state),
+            (state) => !!(state.flags && state.flags.repoInited) || !!(hasWindow && window.fileSystemModule && window.fileSystemModule.exists('.git/config')),
+            (state) => {
                 const index = (state.gitState && state.gitState.index) || {};
                 return Object.keys(index).length > 0 || !!(state.flags && state.flags.stagedOnce);
             },
-            function (state) {
-                return commitsSinceLevelStart(state) >= 1;
-            }
+            (state) => commitsSinceLevelStart(state) >= 1
         ],
         1: [
-            function (state) {
-                return !!(state.flags && state.flags.ranStatus);
-            },
-            function (state) {
-                return !!(state.flags && state.flags.statusSawStaged) && !!(state.flags && state.flags.statusSawWorkingChanges);
-            },
-            function (state) {
-                return commitsSinceLevelStart(state) >= 2;
-            },
-            function (state) {
-                return !!(state.flags && state.flags.ranLog);
-            }
+            (state) => !!(state.flags && state.flags.ranStatus),
+            (state) => !!(state.flags && state.flags.statusSawStaged) && !!(state.flags && state.flags.statusSawWorkingChanges),
+            (state) => commitsSinceLevelStart(state) >= 2,
+            (state) => !!(state.flags && state.flags.ranLog) && commandUsed(state, '--oneline')
         ],
+
+        // Good-to-Know
         2: [
-            function (state) {
-                return branchesSinceLevelStart(state) >= 1 || !!(state.flags && state.flags.branchCreated);
-            },
-            function (state) {
+            (state) => branchesSinceLevelStart(state) >= 1 || !!(state.flags && state.flags.branchCreated),
+            (state) => {
                 const visited = (state.flags && state.flags.visitedBranches) || {};
-                const count = Object.keys(visited).length;
-                const startBranch = state.levelContext && state.levelContext.startBranchName;
-                const returnedToStart = !!(startBranch && visited[startBranch] && count >= 2 && state.flags && state.flags.explicitBranchSwitches >= 2);
-                return returnedToStart;
+                return Object.keys(visited).length >= 2 && !!(state.flags && state.flags.explicitBranchSwitches >= 2);
             },
-            function (state) {
+            (state) => {
                 const byBranch = (state.flags && state.flags.commitsByBranchSinceLevelStart) || {};
                 return Object.keys(byBranch).filter((b) => byBranch[b] >= 1).length >= 2;
             },
-            function (state) {
-                return mergesSinceLevelStart(state) >= 1 || !!(state.flags && state.flags.mergeCompleted);
-            }
+            (state) => !!(state.flags && state.flags.ranMerge)
         ],
         3: [
-            function (state) {
-                return !!(state.flags && state.flags.conflictCreated);
-            },
-            function (state) {
-                return !!(state.flags && state.flags.conflictMarkersIdentified);
-            },
-            function (state) {
-                return !!(state.flags && state.flags.conflictResolved);
-            },
-            function (state) {
-                return !!(state.flags && state.flags.mergeCompleted);
-            }
+            (state) => !!(state.flags && state.flags.conflictCreated),
+            (state) => !!(state.flags && state.flags.conflictMarkersIdentified),
+            (state) => !!(state.flags && state.flags.conflictResolved),
+            (state) => mergesSinceLevelStart(state) >= 1 || !!(state.flags && state.flags.mergeCompleted)
         ],
+
+        // Template Knight
         4: [
-            function (state) {
-                return !!(state.flags && state.flags.ranStash);
-            },
-            function (state) {
-                return !!(state.flags && state.flags.ranStashList) && !!(state.flags && (state.flags.ranStashApply || state.flags.ranStashPop));
-            },
-            function (state) {
-                return !!(state.flags && state.flags.createdAnnotatedTag);
-            },
-            function (state) {
-                return !!(state.flags && state.flags.ranLog) && commandUsed(state, '--oneline');
-            }
+            (state) => !!(state.flags && state.flags.ranStash),
+            (state) => !!(state.flags && state.flags.ranStashList) && !!(state.flags && (state.flags.ranStashApply || state.flags.ranStashPop)),
+            (state) => !!(state.flags && state.flags.createdAnnotatedTag),
+            (state) => hasAliasConfig(state) || commandUsed(state, 'git config --global alias.')
         ],
         5: [
-            function (state) {
-                return !!(state.flags && state.flags.ranMerge) && !!(state.flags && state.flags.ranRebaseBasic);
-            },
-            function (state) {
-                return !!(state.flags && state.flags.ranRebaseBasic);
-            },
-            function (state) {
-                return !!(state.flags && state.flags.ranRebaseInteractive);
-            },
-            function (state) {
-                return !!(state.flags && state.flags.ranRebaseEdited);
-            }
+            (state) => !!(state.flags && state.flags.ranMerge) && !!(state.flags && state.flags.ranRebaseBasic),
+            (state) => !!(state.flags && state.flags.ranRebaseBasic),
+            (state) => !!(state.flags && state.flags.ranRebaseInteractive),
+            (state) => !!(state.flags && state.flags.ranRebaseEdited)
         ],
+
+        // Git Wizard
         6: [
-            function (state) {
-                return !!(state.flags && state.flags.ranReflog);
-            },
-            function (state) {
-                return !!(state.flags && state.flags.recoveredCommit);
-            },
-            function (state) {
-                return !!(state.flags && (state.flags.ranResetSoft || state.flags.ranResetMixed));
-            }
+            (state) => !!(state.flags && state.flags.ranReflog),
+            (state) => !!(state.flags && state.flags.recoveredCommit),
+            (state) => !!(state.flags && (state.flags.ranResetSoft || state.flags.ranResetMixed))
         ],
         7: [
-            function (state) {
-                return !!(state.flags && state.flags.ranCherryPick);
-            },
-            function (state) {
-                return !!(state.flags && state.flags.ranBisectComplete);
-            },
-            function (state) {
+            (state) => !!(state.flags && state.flags.ranCherryPick),
+            (state) => !!(state.flags && state.flags.ranBisectComplete),
+            (state) => {
                 const visited = (state.flags && state.flags.visitedBranches) || {};
                 return !!(state.flags && state.flags.ranCherryPick) && Object.keys(visited).length >= 2;
             }
         ],
+
+        // Grand Git Wizard
         8: [
-            function (state) {
-                return !!(state.flags && state.flags.ranSubmodule) || commandUsed(state, 'git submodule');
-            },
-            function (state) {
-                return commandUsed(state, '.git/hooks') || !!(state.flags && state.flags.createdHook);
-            },
-            function (state) {
-                return hasAliasConfig(state);
-            }
+            (state) => remoteSetupDone(state),
+            (state) => remoteSyncDone(state),
+            (state) => !!(state.flags && state.flags.createdPullRequest) && !!(state.flags && state.flags.reviewedPullRequest),
+            (state) => !!(state.flags && state.flags.ciChecksPassed)
         ],
         9: [
-            function (state) {
-                const flags = state.flags || {};
-                return !!(flags.ranCommit && flags.ranBranchFlow && flags.ranMerge && flags.ranRebaseBasic && flags.ranCherryPick);
-            },
-            function (state) {
-                return !!(state.flags && state.flags.finalExamComplete);
-            },
-            function (state) {
-                const done = Array.isArray(state.completedLevels) ? state.completedLevels : [];
-                return !!(state.flags && state.flags.finalExamComplete) && done.length >= 9;
-            }
+            (state) => remoteSetupDone(state) && remoteSyncDone(state),
+            (state) => !!(state.flags && state.flags.createdPullRequest) && !!(state.flags && state.flags.ranPush),
+            (state) => !!(state.flags && state.flags.reviewedPullRequest) && !!(state.flags && state.flags.ciChecksPassed),
+            (state) => !!(state.flags && state.flags.mergedWhenChecksPass)
         ]
     };
 

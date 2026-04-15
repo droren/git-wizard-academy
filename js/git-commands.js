@@ -1845,6 +1845,9 @@ gitCommands.show = function(args) {
 };
 
 gitCommands.remote = async function(args) {
+    window.gameState.flags = window.gameState.flags || {};
+    if (args[0] === 'add' && args[1] === 'origin') window.gameState.flags.remoteOriginConfigured = true;
+    if (args[0] === 'add' && args[1] === 'upstream') window.gameState.flags.remoteUpstreamConfigured = true;
     if (window.gameEngine && window.gameEngine.isLiveGitHubConnected && window.gameEngine.isLiveGitHubConnected()) {
         const live = window.gameEngine.getLiveGitHubState ? window.gameEngine.getLiveGitHubState() : {};
         const repo = live.repo || {};
@@ -1868,6 +1871,8 @@ gitCommands.remote = async function(args) {
 };
 
 gitCommands.fetch = async function(args) {
+    window.gameState.flags = window.gameState.flags || {};
+    window.gameState.flags.ranFetch = true;
     if (window.gameEngine && window.gameEngine.isLiveGitHubConnected && window.gameEngine.isLiveGitHubConnected()) {
         const result = await window.gameEngine.fetchLiveGitHubRepo();
         return {
@@ -1880,6 +1885,8 @@ gitCommands.fetch = async function(args) {
 };
 
 gitCommands.pull = async function(args) {
+    window.gameState.flags = window.gameState.flags || {};
+    window.gameState.flags.ranPull = true;
     if (window.gameEngine && window.gameEngine.isLiveGitHubConnected && window.gameEngine.isLiveGitHubConnected()) {
         const result = await window.gameEngine.pullLiveGitHubRepo();
         return {
@@ -1892,6 +1899,8 @@ gitCommands.pull = async function(args) {
 };
 
 gitCommands.push = async function(args) {
+    window.gameState.flags = window.gameState.flags || {};
+    window.gameState.flags.ranPush = true;
     if (window.gameEngine && window.gameEngine.isLiveGitHubConnected && window.gameEngine.isLiveGitHubConnected()) {
         const result = await window.gameEngine.pushLiveGitHubRepo();
         return {

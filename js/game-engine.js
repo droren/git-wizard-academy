@@ -378,6 +378,8 @@ const gameEngine = {
             authenticated: true,
             repo: result.repo
         });
+        window.gameState.flags = window.gameState.flags || {};
+        window.gameState.flags.remoteOriginConfigured = true;
         this.updateLiveGitHubStatus('Repository ready: ' + result.repo.owner + '/' + result.repo.name + '.');
         return result;
     },
@@ -404,6 +406,8 @@ const gameEngine = {
             includeWorkflow: !!((document.getElementById('liveGitHubInstallWorkflow') || {}).checked)
         };
         const result = await window.liveGitHubBridge.push(payload);
+        window.gameState.flags = window.gameState.flags || {};
+        window.gameState.flags.ranPush = true;
         this.updateLiveGitHubStatus('Pushed branches and tags to ' + (result.result && result.result.repo ? (result.result.repo.owner + '/' + result.result.repo.name) : 'GitHub') + '.');
         if (payload.includeWorkflow) {
             try {
@@ -423,6 +427,8 @@ const gameEngine = {
             config: window.configStore && window.configStore.load ? window.configStore.load() : {}
         };
         const result = await window.liveGitHubBridge.fetch(payload);
+        window.gameState.flags = window.gameState.flags || {};
+        window.gameState.flags.ranFetch = true;
         this.updateLiveGitHubStatus('Fetched remote refs from GitHub.');
         return result;
     },
@@ -434,6 +440,8 @@ const gameEngine = {
             config: window.configStore && window.configStore.load ? window.configStore.load() : {}
         };
         const result = await window.liveGitHubBridge.pull(payload);
+        window.gameState.flags = window.gameState.flags || {};
+        window.gameState.flags.ranPull = true;
         this.updateLiveGitHubStatus('Pulled from GitHub. See terminal output for the real git pull result.');
         return result;
     },
@@ -449,6 +457,8 @@ const gameEngine = {
             prBody: 'Created from Live GitHub Mode.'
         };
         const result = await window.liveGitHubBridge.createPullRequest(payload);
+        window.gameState.flags = window.gameState.flags || {};
+        window.gameState.flags.createdPullRequest = true;
         this.syncLiveGitHubState({
             lastPr: result.pr
         });
@@ -465,6 +475,9 @@ const gameEngine = {
             config: window.configStore && window.configStore.load ? window.configStore.load() : {},
             pullNumber: state.lastPr.number
         });
+        window.gameState.flags = window.gameState.flags || {};
+        window.gameState.flags.reviewedPullRequest = true;
+        window.gameState.flags.ciChecksPassed = !!(result && result.result && Array.isArray(result.result.problems) && result.result.problems.length === 0);
         this.updateLiveGitHubStatus(result.result && result.result.problems && result.result.problems.length
             ? 'Review bot left feedback on PR #' + state.lastPr.number + '.'
             : 'Review bot found no blocking issues.');
@@ -481,6 +494,9 @@ const gameEngine = {
             pullNumber: state.lastPr.number,
             mergeMethod: 'merge'
         });
+        window.gameState.flags = window.gameState.flags || {};
+        window.gameState.flags.ciChecksPassed = true;
+        window.gameState.flags.mergedWhenChecksPass = true;
         this.updateLiveGitHubStatus('Merged PR #' + state.lastPr.number + ' into the main branch.');
         return result;
     },
@@ -1102,14 +1118,6 @@ const gameEngine = {
     checkObjectives: function() {
         const lesson = window.lessons[window.gameState.currentLevel];
         window.gameState.flags = window.gameState.flags || {};
-
-        // Final-exam synthesis: track multi-skill completion in the final level.
-        if (window.gameState.currentLevel === 9) {
-            const f = window.gameState.flags;
-            if (f.ranCommit && f.ranBranchFlow && f.ranMerge && f.ranRebaseBasic && f.ranCherryPick) {
-                f.finalExamComplete = true;
-            }
-        }
         
         lesson.objectives.forEach(function(obj, index) {
             if (window.gameState.currentObjectives[index] === 'complete') return;
