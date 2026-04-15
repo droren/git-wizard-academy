@@ -11,10 +11,11 @@
         const gitState = state.gitState || {};
         const localCfg = (gitState.config && gitState.config.local) || {};
         const globalCfg = (gitState.config && gitState.config.global) || ((hasWindow && window.configStore) ? window.configStore.load() : {});
+        const identityConfirmed = !!(state.flags && state.flags.identityConfirmed);
 
         const name = localCfg['user.name'] || globalCfg['user.name'];
         const email = localCfg['user.email'] || globalCfg['user.email'];
-        return !!name && !!email;
+        return identityConfirmed && !!name && !!email;
     }
 
     function commitsSinceLevelStart(state) {
@@ -52,6 +53,17 @@
         const globalCfg = (gitState.config && gitState.config.global) || {};
         const cfg = Object.assign({}, globalCfg, localCfg);
         return !!(cfg['alias.co'] || cfg['alias.br'] || cfg['alias.st']);
+    }
+
+    function readWorkingFile(path) {
+        if (!hasWindow || !window.fileSystemModule || !window.fileSystemModule.readFile) return '';
+        const file = window.fileSystemModule.readFile(path);
+        return file ? String(file.content || '') : '';
+    }
+
+    function hasConflictMarkers(text) {
+        const value = String(text || '');
+        return value.includes('<<<<<<<') || value.includes('=======') || value.includes('>>>>>>>');
     }
 
     const strictRules = {
@@ -105,16 +117,37 @@
         ],
         3: [
             function (state) {
-                return !!(state.flags && state.flags.conflictCreated);
+                return !!(state.flags && state.flags.conflictCreated) || !!(state.gitState && state.gitState.mergeInProgress);
             },
             function (state) {
-                return !!(state.flags && state.flags.conflictMarkersIdentified);
+                if (state.flags && state.flags.conflictMarkersIdentified) return true;
+                const content = readWorkingFile('app.js');
+                return hasConflictMarkers(content);
             },
             function (state) {
-                return !!(state.flags && state.flags.conflictResolved);
+                const expected = state.levelContext && state.levelContext.expectedConflictResolution
+                    ? state.levelContext.expectedConflictResolution
+                    : 'const mode = "merged"; console.log(mode + " timeline");';
+                const content = readWorkingFile('app.js').trim();
+                return !!(state.flags && state.flags.conflictCreated) &&
+                    !!(state.flags && (state.flags.conflictResolvedCandidate || state.gitState && state.gitState.mergeInProgress)) &&
+                    !hasConflictMarkers(content) &&
+                    content === expected;
             },
             function (state) {
-                return !!(state.flags && state.flags.mergeCompleted);
+                const gitState = state.gitState || {};
+                const currentBranch = gitState.currentBranch || 'main';
+                const headSha = gitState.refs && gitState.refs[currentBranch];
+                const headCommit = headSha && gitState.commitBySha ? gitState.commitBySha[headSha] : null;
+                const startHeadSha = state.levelContext && state.levelContext.startHeadSha;
+                const expectedMergeHead = state.levelContext && state.levelContext.conflictMergeHead;
+                return !!(state.flags && state.flags.mergeCompleted) &&
+                    currentBranch === 'main' &&
+                    !!headCommit &&
+                    Array.isArray(headCommit.parents) &&
+                    headCommit.parents.length >= 2 &&
+                    headCommit.parents.includes(startHeadSha) &&
+                    headCommit.parents.includes(expectedMergeHead);
             }
         ],
         4: [

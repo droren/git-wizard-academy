@@ -9,6 +9,18 @@ const gitCommands = {};
 const GIT_CONFIG_STORAGE_KEY = 'gwa_git_config_v1';
 const model = window.repoModel || {};
 
+function playGitCue(name, options) {
+    if (window.Assets && window.Assets.playSound) {
+        window.Assets.playSound(name, options);
+    }
+}
+
+function reactCharacter(eventName, payload) {
+    if (window.characterSystem && window.characterSystem.reactToEvent) {
+        window.characterSystem.reactToEvent(eventName, payload);
+    }
+}
+
 // tiny non-crypto hash for file snapshots (good enough for a game)
 function hashContent(str) {
     if (model.hashContent) return model.hashContent(str);
@@ -45,6 +57,19 @@ function getGlobalConfig() {
     } catch (e) {
         return {};
     }
+}
+
+function isIdentityConfirmed() {
+    return !!(window.gameState && window.gameState.flags && window.gameState.flags.identityConfirmed);
+}
+
+function getVisibleGlobalConfig() {
+    const cfg = Object.assign({}, getGlobalConfig());
+    if (!isIdentityConfirmed()) {
+        delete cfg['user.name'];
+        delete cfg['user.email'];
+    }
+    return cfg;
 }
 
 function setGlobalConfig(config) {
@@ -183,18 +208,14 @@ function parseCommitMessage(args) {
     return 'Update';
 }
 
-function validateCommitMessage(message) {
-    const normalized = String(message || '').trim();
-    if (!normalized) {
-        return { ok: false, reason: 'error: commit message cannot be empty' };
+function logDev(event, data) {
+    if (window.DevLogger && typeof window.DevLogger.log === 'function') {
+        window.DevLogger.log(event, data || {});
     }
-    if (normalized.length < 8) {
-        return { ok: false, reason: 'error: commit message is too short. Write a more descriptive message.' };
-    }
-    if (/^(update|wip|temp|test|fix|commit|changes?)$/i.test(normalized)) {
-        return { ok: false, reason: 'error: commit message is too vague. Use a descriptive summary.' };
-    }
-    return { ok: true, message: normalized };
+}
+
+function isValidCommitMessage(msg) {
+    return !!(msg && String(msg).trim().length >= 15 && String(msg).includes(' '));
 }
 
 function getHookPath(name) {
@@ -670,6 +691,7 @@ gitCommands.init = function(args) {
 gitCommands.config = function(args) {
     const state = ensureGitState();
     const isGlobal = args.includes('--global');
+    const isLocal = args.includes('--local');
     const list = args.includes('--list');
     const get = args.includes('--get');
 
@@ -677,13 +699,26 @@ gitCommands.config = function(args) {
 
     if (list) {
         const lines = [];
-        Object.keys(state.config.global).sort().forEach((k) => lines.push(k + '=' + state.config.global[k]));
-        Object.keys(state.config.local).sort().forEach((k) => lines.push(k + '=' + state.config.local[k]));
+        const globalCfg = getVisibleGlobalConfig();
+        const appendScope = function(scope) {
+            Object.keys(scope).sort().forEach((k) => lines.push(k + '=' + scope[k]));
+        };
+        if (isGlobal) {
+            appendScope(globalCfg);
+        } else if (isLocal) {
+            appendScope(state.config.local);
+        } else {
+            appendScope(globalCfg);
+            appendScope(state.config.local);
+        }
         return { success: true, message: lines.join('\n'), isRaw: true, xp: 5 };
     }
 
     if (get && plainArgs[0]) {
-        const value = readConfigValue(state, plainArgs[0]);
+        const key = plainArgs[0];
+        const value = (!isIdentityConfirmed() && (key === 'user.name' || key === 'user.email'))
+            ? ''
+            : readConfigValue(state, key);
         if (!value) return { success: false, message: '', xp: 0 };
         return { success: true, message: value, isRaw: true, xp: 2 };
     }
@@ -720,6 +755,9 @@ gitCommands.config = function(args) {
     if (key === 'user.name' || key === 'user.email') {
         window.gameState.flags = window.gameState.flags || {};
         window.gameState.flags.configuredIdentity = true;
+        if (state.config.global['user.name'] && state.config.global['user.email']) {
+            window.gameState.flags.identityConfirmed = true;
+        }
     }
 
     if (window.gameEngine && window.gameEngine.syncGlobalEnvironmentConfig) {
@@ -883,6 +921,8 @@ gitCommands.add = function(args) {
                 if (!state.conflictFiles.length) {
                     window.gameState.flags = window.gameState.flags || {};
                     window.gameState.flags.conflictResolvedCandidate = true;
+                    playGitCue('success');
+                    reactCharacter('merge-partial-resolved', { stage: 'staged', file: name });
                 }
             }
         } else if (headTree[name] !== undefined) {
@@ -916,6 +956,9 @@ gitCommands.commit = function(args) {
     const allowEmpty = args.includes('--allow-empty');
 
     if (state.mergeInProgress && state.conflictFiles.length) {
+        playGitCue('error');
+        if (window.Effects && window.Effects.glitch) window.Effects.glitch();
+        reactCharacter('commit-rejected', { reason: 'unmerged-files' });
         return {
             success: false,
             message: 'error: Committing is not possible because you have unmerged files.\nHint: resolve conflicts, `git add`, then `git commit`.',
@@ -924,17 +967,23 @@ gitCommands.commit = function(args) {
     }
 
     const commitMessage = parseCommitMessage(args);
-    const messageCheck = validateCommitMessage(commitMessage);
-    if (!messageCheck.ok) {
+    const normalizedMessage = String(commitMessage || '').trim();
+    if (!isValidCommitMessage(normalizedMessage)) {
         window.gameState.flags = window.gameState.flags || {};
         window.gameState.flags.commitMessageRejected = true;
-        return { success: false, message: messageCheck.reason, xp: 0 };
+        playGitCue('error');
+        if (window.Effects && window.Effects.glitch) window.Effects.glitch();
+        reactCharacter('commit-rejected', { reason: 'message-validation' });
+        return { success: false, message: 'error: commit message is too short. Write a more descriptive message.', xp: 0 };
     }
 
     const preCommitCheck = preCommitHookAllows(state);
     if (!preCommitCheck.ok) {
         window.gameState.flags = window.gameState.flags || {};
         window.gameState.flags.preCommitHookBlocked = true;
+        playGitCue('error');
+        if (window.Effects && window.Effects.glitch) window.Effects.glitch();
+        reactCharacter('lint-fail', { reason: 'pre-commit-hook' });
         return { success: false, message: preCommitCheck.reason, xp: 0 };
     }
 
@@ -942,15 +991,19 @@ gitCommands.commit = function(args) {
     if (!msgHookCheck.ok) {
         window.gameState.flags = window.gameState.flags || {};
         window.gameState.flags.commitMsgHookBlocked = true;
+        playGitCue('error');
+        if (window.Effects && window.Effects.glitch) window.Effects.glitch();
+        reactCharacter('lint-fail', { reason: 'commit-msg-hook' });
         return { success: false, message: msgHookCheck.reason, xp: 0 };
     }
 
     const parents = state.mergeInProgress
         ? [state.refs[state.currentBranch], state.mergeHead].filter(Boolean)
         : undefined;
+    const mergeBossEncounter = !!(state.mergeInProgress && window.gameState.flags && window.gameState.flags.mergeConflictBoss);
 
     const result = createCommit(state, {
-        message: messageCheck.message,
+        message: normalizedMessage,
         allowEmpty,
         parents
     });
@@ -974,7 +1027,11 @@ gitCommands.commit = function(args) {
         window.gameState.flags.conflictResolved = true;
 
         if (window.gameEngine && document.getElementById('bossOverlay')?.classList.contains('show')) {
-            window.gameEngine.damageBoss(60);
+            if (window.gameState.flags.mergeConflictBoss) {
+                window.gameEngine.damageBoss(100);
+            } else {
+                window.gameEngine.damageBoss(60);
+            }
         }
     }
 
@@ -982,6 +1039,11 @@ gitCommands.commit = function(args) {
     window.gameState.flags = window.gameState.flags || {};
     window.gameState.flags.ranCommit = true;
     window.gameState.flags.lastCommitMessageGood = true;
+    if (!mergeBossEncounter) {
+        playGitCue('success');
+        if (window.Effects && window.Effects.sparkle) window.Effects.sparkle();
+    }
+    reactCharacter('commit-success', { commit: result.commit });
 
     if (window.gameEngine) {
         window.gameEngine.checkObjectives();
@@ -1080,6 +1142,7 @@ gitCommands.branch = function(args) {
 
         state.branches = state.branches.filter((b) => b !== toDelete);
         delete state.refs[toDelete];
+        playGitCue('click');
         return { success: true, message: 'Deleted branch ' + toDelete, xp: 20 };
     }
 
@@ -1095,6 +1158,7 @@ gitCommands.branch = function(args) {
         window.gameState.flags = window.gameState.flags || {};
         window.gameState.flags.branchCreated = true;
         window.gameState.flags.ranBranchFlow = true;
+        playGitCue('switch');
         return { success: true, message: "Branch '" + newBranch + "' created", xp: 25 };
     }
 
@@ -1129,7 +1193,7 @@ gitCommands.checkout = function(args) {
         return { success: true, message: 'Restored ' + targets.join(' '), xp: 10 };
     }
 
-    if (createIndex !== -1 && args[createIndex + 1]) {
+        if (createIndex !== -1 && args[createIndex + 1]) {
         const newBranch = args[createIndex + 1];
         if (state.branches.includes(newBranch)) {
             return { success: false, message: "fatal: A branch named '" + newBranch + "' already exists.", xp: 0 };
@@ -1145,6 +1209,7 @@ gitCommands.checkout = function(args) {
         window.gameState.flags.visitedBranches[newBranch] = true;
         window.gameState.flags.explicitBranchSwitches = (window.gameState.flags.explicitBranchSwitches || 0) + 1;
         window.gameState.flags.ranBranchFlow = true;
+        playGitCue('switch');
         return { success: true, message: "Switched to a new branch '" + newBranch + "'", xp: 25 };
     }
 
@@ -1160,6 +1225,7 @@ gitCommands.checkout = function(args) {
     window.gameState.flags.visitedBranches[branch] = true;
     window.gameState.flags.explicitBranchSwitches = (window.gameState.flags.explicitBranchSwitches || 0) + 1;
     window.gameState.flags.ranBranchFlow = true;
+    playGitCue('switch');
     if (args.some((a) => /^[a-f0-9]{7,40}$/.test(a))) {
         window.gameState.flags.recoveredCommit = true;
     }
@@ -1190,6 +1256,7 @@ gitCommands.switch = function(args) {
         window.gameState.flags.visitedBranches[newBranch] = true;
         window.gameState.flags.explicitBranchSwitches = (window.gameState.flags.explicitBranchSwitches || 0) + 1;
         window.gameState.flags.ranBranchFlow = true;
+        playGitCue('switch');
         return { success: true, message: "Switched to a new branch '" + newBranch + "'", xp: 25 };
     }
 
@@ -1205,6 +1272,7 @@ gitCommands.switch = function(args) {
     window.gameState.flags.visitedBranches[branch] = true;
     window.gameState.flags.explicitBranchSwitches = (window.gameState.flags.explicitBranchSwitches || 0) + 1;
     window.gameState.flags.ranBranchFlow = true;
+    playGitCue('switch');
     return { success: true, message: "Switched to branch '" + branch + "'", xp: 20 };
 };
 
@@ -1249,6 +1317,8 @@ gitCommands.merge = function(args) {
         Object.keys(sourceSnapshot).forEach((name) => fs.writeFile(name, sourceSnapshot[name]));
         state.refs[state.currentBranch] = theirsSha;
         refreshTrackedFiles(state);
+        playGitCue('success');
+        reactCharacter('merge-resolved', { mode: 'fast-forward' });
         return { success: true, message: 'Updating (empty)\nFast-forward', xp: 25 };
     }
 
@@ -1272,6 +1342,8 @@ gitCommands.merge = function(args) {
         window.gameState.merges++;
         window.gameState.flags = window.gameState.flags || {};
         window.gameState.flags.mergeCompleted = true;
+        playGitCue('success');
+        reactCharacter('merge-resolved', { mode: 'fast-forward' });
         return { success: true, message: 'Updating ' + oursSha.slice(0, 7) + '..' + theirsSha.slice(0, 7) + '\nFast-forward', xp: 25 };
     }
 
@@ -1346,6 +1418,13 @@ gitCommands.merge = function(args) {
         window.gameState.conflicts++;
         window.gameState.flags = window.gameState.flags || {};
         window.gameState.flags.conflictCreated = true;
+        playGitCue('alarm');
+        if (window.Effects && window.Effects.shake) window.Effects.shake(240);
+        if (window.Effects && window.Effects.glitch) window.Effects.glitch(480);
+        reactCharacter('merge-conflict', { file: conflictFiles[0], currentBranch: state.currentBranch, sourceBranch: sourceBranch });
+        if (window.gameEngine && window.gameEngine.updateConflictBossDiff) {
+            window.gameEngine.updateConflictBossDiff();
+        }
 
         if (window.gameEngine) window.gameEngine.checkObjectives();
 
@@ -1372,6 +1451,9 @@ gitCommands.merge = function(args) {
     window.gameState.merges++;
     window.gameState.flags = window.gameState.flags || {};
     window.gameState.flags.mergeCompleted = true;
+    playGitCue('success');
+    if (window.Effects && window.Effects.sparkle) window.Effects.sparkle({ left: 62, top: 54, lifeMs: 900, scale: 1 });
+    reactCharacter('merge-resolved', { mode: 'merge-commit', sourceBranch: sourceBranch });
 
     if (window.gameEngine && document.getElementById('bossOverlay')?.classList.contains('show')) {
         window.gameEngine.damageBoss(35);
@@ -1902,6 +1984,43 @@ gitCommands.push = async function(args) {
     }
     return { success: true, message: 'To /repo.git\n   a8949f9..3b2a0c5  main -> main\n(note: push is simulated in Git Wizard Academy)', xp: 25 };
 };
+
+Object.keys(gitCommands).forEach(function(name) {
+    if (name === '_hash') return;
+    const original = gitCommands[name];
+    if (typeof original !== 'function') return;
+    gitCommands[name] = function() {
+        const args = Array.prototype.slice.call(arguments);
+        logDev('git.' + name, { args: args });
+        try {
+            const result = original.apply(this, args);
+            if (result && typeof result.then === 'function') {
+                return result.then(function(res) {
+                    if (res && res.success === false) {
+                        logDev('error', { message: res.message || 'git command failed', command: 'git ' + name, args: args });
+                    } else {
+                        logDev('git.' + name + '.success', { message: res && res.message ? res.message : '', command: 'git ' + name, args: args });
+                    }
+                    return res;
+                }).catch(function(err) {
+                    logDev('error', { message: err && err.message ? err.message : String(err), command: 'git ' + name, args: args });
+                    throw err;
+                });
+            }
+            if (result && result.success === false) {
+                logDev('error', { message: result.message || 'git command failed', command: 'git ' + name, args: args });
+            } else {
+                logDev('git.' + name + '.success', { message: result && result.message ? result.message : '', command: 'git ' + name, args: args });
+            }
+            return result;
+        } catch (err) {
+            logDev('error', { message: err && err.message ? err.message : String(err), command: 'git ' + name, args: args });
+            throw err;
+        }
+    };
+});
+
+gitCommands.isValidCommitMessage = isValidCommitMessage;
 
 // Export
 window.gitCommands = gitCommands;

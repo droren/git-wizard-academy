@@ -22,6 +22,7 @@ const lessons = [
         content: `
             <h2>🌱 Welcome, Young Apprentice!</h2>
             <p>Git is a powerful <strong>Version Control System</strong> that tracks changes in your code. Think of it as a time machine for your files!</p>
+            <p>Your home directory is your personal camp. Your repositories live in project folders inside <code>~/projects/</code>, and your hidden <code>.gitconfig</code> stays in home where <code>ls -al</code> can reveal it.</p>
             
             <h3>What You'll Learn</h3>
             <ul>
@@ -41,6 +42,12 @@ const lessons = [
             <h3>Setting Up Your Identity</h3>
             <pre><code>git config --global user.name "Your Name"
 git config --global user.email "your@email.com"</code></pre>
+            <p>This lesson wants you to set identity through Git itself. Later, <code>ls -al</code> in your home directory will show the hidden <code>.gitconfig</code> file that stores those global settings.</p>
+
+            <h3>Working in a Project Folder</h3>
+            <pre><code>pwd
+cd ~/projects/level-1
+ls -al</code></pre>
 
             <h3>Creating Your First Repo</h3>
             <pre><code>git init</code></pre>
@@ -198,21 +205,21 @@ git switch main</code></pre>
     },
     {
         id: 3,
-        title: "Level 4: Battlefield Captain",
+        title: "Level 4: Merge Conflict Boss",
         icon: "⚔️",
         iconClass: "battlefield",
         xpReward: 250,
-        titleName: "Battlefield Captain",
-        description: "Conquer merge conflicts",
+        titleName: "Merge Conflict Boss",
+        description: "Defeat the Goblin King of conflicting timelines",
         objectives: [
             "Create a merge conflict",
             "Identify conflict markers",
-            "Resolve a merge conflict",
-            "Complete a merge after resolution"
+            "Resolve the merge manually in nano",
+            "Complete the merge after the conflict is fixed"
         ],
         content: `
-            <h2>⚔️ Enter the Battlefield</h2>
-            <p>Conflicts happen when two people edit the same part of a file. Don't panic - they're normal and fixable!</p>
+            <h2>⚔️ The Merge Conflict Boss Awakens</h2>
+            <p>Conflicts happen when two people edit the same part of a file. This is the first real boss fight: you will face a split timeline, read the markers, and resolve it by hand.</p>
 
             <h3>How Conflicts Arise</h3>
             <p>When the same file is edited on different branches and you try to merge them.</p>
@@ -228,11 +235,12 @@ Their changes here
             <ol>
                 <li>Open the file and decide which changes to keep</li>
                 <li>Remove the conflict markers</li>
+                <li>Leave the resolved line as <code>const mode = "merged"; console.log(mode + " timeline");</code></li>
                 <li>Stage the resolved file</li>
                 <li>Commit the merge</li>
             </ol>
 
-            <pre><code>git add filename.txt
+            <pre><code>git add app.js
 git commit -m "Resolve merge conflict"</code></pre>
 
             <div class="objective-box">
@@ -259,11 +267,13 @@ git commit -m "Resolve merge conflict"</code></pre>
         },
         conflictScenario: true,
         boss: {
-            name: "Captain Mira Rift",
-            avatar: "🧙‍♂️",
+            name: "Merge Conflict Goblin King",
+            avatar: "👹",
+            sprite: "mergegoblin",
             hp: 100,
-            dialogue: "Conflicts do not fear you yet, apprentice. Read the markers, choose carefully, and prove they should.",
-            hint: "Find the conflict markers, choose the right changes, then add and commit!"
+            dialogue: "Two timelines are mine to twist! Remove my markers, forge the merged line, and prove your repository still has a future!",
+            hint: "Use nano to replace the conflict with: const mode = \"merged\"; console.log(mode + \" timeline\");",
+            timerSeconds: 45
         }
     },
     {

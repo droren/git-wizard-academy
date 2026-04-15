@@ -18,10 +18,133 @@ const ui = {
     flareTimer: null,
     introVisible: false,
     introCloseTimer: null,
+    introMusicRetryBound: null,
+    bootTimer: null,
+    introReadyToStart: false,
     pendingGuideLevel: null,
     guidePlayState: { playing: false, step: 0, line: 0, steps: [] },
     resolverState: { file: '', ours: '', theirs: '', both: '', choice: 'both' },
     hintTimer: null,
+
+    playSoundCue: function(name, options) {
+        if (window.Assets && window.Assets.playSound) {
+            return window.Assets.playSound(name, options);
+        }
+        return null;
+    },
+
+    syncSoundToggle: function() {
+        const audioButton = document.getElementById('audioSettingsBtn');
+        if (!audioButton) return;
+        const settings = window.Assets && window.Assets.getSettings ? window.Assets.getSettings() : {};
+        const musicInfo = window.Assets && window.Assets.getMusicInfo && settings.selectedMusic
+            ? window.Assets.getMusicInfo(settings.selectedMusic)
+            : null;
+        const musicState = settings.musicEnabled ? 'Music On' : 'Music Off';
+        const sfxState = settings.sfxEnabled ? 'SFX On' : 'SFX Off';
+        const trackState = musicInfo ? musicInfo.title : 'No music';
+        audioButton.setAttribute('data-muted', !settings.musicEnabled && !settings.sfxEnabled ? 'true' : 'false');
+        audioButton.setAttribute('aria-label', 'Open audio settings');
+        audioButton.title = musicState + ' • ' + sfxState + ' • ' + trackState;
+        audioButton.classList.toggle('off', !settings.musicEnabled && !settings.sfxEnabled);
+        const label = audioButton.querySelector('.sound-label');
+        if (label) label.textContent = 'Audio';
+    },
+
+    populateAudioSettings: function(animate) {
+        const settings = window.Assets && window.Assets.getSettings ? window.Assets.getSettings() : {};
+        const catalog = window.Assets && window.Assets.getMusicCatalog ? window.Assets.getMusicCatalog() : [];
+        const musicEnabledToggle = document.getElementById('musicEnabledToggle');
+        const sfxEnabledToggle = document.getElementById('sfxEnabledToggle');
+        const musicTrackSelect = document.getElementById('musicTrackSelect');
+        const musicTrackInfo = document.getElementById('musicTrackInfo');
+        const musicVolumeRange = document.getElementById('musicVolumeRange');
+        const sfxVolumeRange = document.getElementById('sfxVolumeRange');
+        const audioHint = document.getElementById('audioHint');
+        const currentTrack = settings.selectedMusic && window.Assets && window.Assets.getMusicInfo
+            ? window.Assets.getMusicInfo(settings.selectedMusic)
+            : null;
+
+        if (musicEnabledToggle) {
+            musicEnabledToggle.textContent = settings.musicEnabled ? 'On' : 'Off';
+            musicEnabledToggle.classList.toggle('off', !settings.musicEnabled);
+        }
+        if (sfxEnabledToggle) {
+            sfxEnabledToggle.textContent = settings.sfxEnabled ? 'On' : 'Off';
+            sfxEnabledToggle.classList.toggle('off', !settings.sfxEnabled);
+        }
+
+        if (musicTrackSelect) {
+            const currentValue = settings.selectedMusic || '';
+            const shouldBuild = musicTrackSelect.options.length === 0 || musicTrackSelect.dataset.built !== '1';
+            if (shouldBuild) {
+                musicTrackSelect.innerHTML = '';
+                const noneOption = document.createElement('option');
+                noneOption.value = '';
+                noneOption.textContent = 'No music';
+                musicTrackSelect.appendChild(noneOption);
+                catalog.forEach((track) => {
+                    const option = document.createElement('option');
+                    option.value = track.key;
+                    option.textContent = track.title + ' — ' + track.artist;
+                    musicTrackSelect.appendChild(option);
+                });
+                musicTrackSelect.dataset.built = '1';
+            }
+            musicTrackSelect.value = currentValue;
+        }
+
+        if (musicVolumeRange) {
+            musicVolumeRange.value = Math.round((settings.musicVolume || 0) * 100);
+        }
+        if (sfxVolumeRange) {
+            sfxVolumeRange.value = Math.round((settings.sfxVolume || 0) * 100);
+        }
+
+        if (musicTrackInfo) {
+            const info = currentTrack
+                ? '<strong>' + this.escapeHtml(currentTrack.title) + '</strong><br>' +
+                    this.escapeHtml(currentTrack.artist) + '<br>' +
+                    'Source: ' + this.escapeHtml(currentTrack.source) + '<br>' +
+                    'File: ' + this.escapeHtml(currentTrack.file ? currentTrack.file.split('/').pop() : '')
+                : '<strong>No music selected</strong><br>' +
+                    'Choose a track to use as background music, or keep the game silent.';
+            musicTrackInfo.innerHTML = info;
+            if (animate) {
+                musicTrackInfo.classList.remove('pop');
+                void musicTrackInfo.offsetWidth;
+                musicTrackInfo.classList.add('pop');
+            }
+        }
+
+        if (audioHint) {
+            audioHint.textContent = settings.musicEnabled
+                ? 'Background music will use your selected track.'
+                : 'Music is muted right now, but your selection is saved.';
+        }
+    },
+
+    openAudioSettings: function() {
+        const overlay = document.getElementById('audioSettingsModal');
+        if (!overlay) return;
+        this.populateAudioSettings(true);
+        overlay.classList.add('show');
+        this.syncSoundToggle();
+    },
+
+    closeAudioSettings: function() {
+        const overlay = document.getElementById('audioSettingsModal');
+        if (!overlay) return;
+        overlay.classList.remove('show');
+    },
+
+    applyMusicSelection: function(trackKey) {
+        if (window.Assets && window.Assets.setSelectedMusic) {
+            window.Assets.setSelectedMusic(trackKey || '');
+        }
+        this.populateAudioSettings(true);
+        this.syncSoundToggle();
+    },
 
     tokenizeInput: function(input) {
         const tokens = [];
@@ -196,7 +319,15 @@ const ui = {
         const terminalInput = document.getElementById('terminalInput');
         const terminalBody = document.getElementById('terminalOutput');
         const nanoTextarea = document.getElementById('nanoTextarea');
-        const soundToggle = document.getElementById('soundToggle');
+        const audioSettingsBtn = document.getElementById('audioSettingsBtn');
+        const audioSettingsModal = document.getElementById('audioSettingsModal');
+        const audioSettingsCloseBtn = document.getElementById('audioSettingsCloseBtn');
+        const exportDebugBtn = document.getElementById('exportDebugBtn');
+        const musicEnabledToggle = document.getElementById('musicEnabledToggle');
+        const sfxEnabledToggle = document.getElementById('sfxEnabledToggle');
+        const musicTrackSelect = document.getElementById('musicTrackSelect');
+        const musicVolumeRange = document.getElementById('musicVolumeRange');
+        const sfxVolumeRange = document.getElementById('sfxVolumeRange');
         const replayIntroBtn = document.getElementById('replayIntroBtn');
         const proceedLevelBtn = document.getElementById('proceedLevelBtn');
         const toggleButtons = document.querySelectorAll('.icon-toggle[data-target]');
@@ -242,8 +373,63 @@ const ui = {
         }
         
         // Sound toggle
-        if (soundToggle) {
-            soundToggle.addEventListener('click', this.toggleSound.bind(this));
+        if (audioSettingsBtn) {
+            audioSettingsBtn.addEventListener('click', this.toggleSound.bind(this));
+        }
+        if (exportDebugBtn) {
+            exportDebugBtn.addEventListener('click', this.exportDebugSession.bind(this));
+        }
+        if (audioSettingsModal) {
+            audioSettingsModal.addEventListener('click', function(event) {
+                if (event.target === audioSettingsModal) {
+                    ui.closeAudioSettings();
+                }
+            });
+        }
+        if (audioSettingsCloseBtn) {
+            audioSettingsCloseBtn.addEventListener('click', this.closeAudioSettings.bind(this));
+        }
+        if (musicEnabledToggle) {
+            musicEnabledToggle.addEventListener('click', function() {
+                if (!window.Assets || !window.Assets.setMusicEnabled) return;
+                const next = !(window.Assets.getSettings && window.Assets.getSettings().musicEnabled);
+                window.Assets.setMusicEnabled(next);
+                ui.populateAudioSettings(false);
+                ui.syncSoundToggle();
+                if (next) ui.playSoundCue('click');
+            });
+        }
+        if (sfxEnabledToggle) {
+            sfxEnabledToggle.addEventListener('click', function() {
+                if (!window.Assets || !window.Assets.setSfxEnabled) return;
+                const next = !(window.Assets.getSettings && window.Assets.getSettings().sfxEnabled);
+                window.Assets.setSfxEnabled(next);
+                ui.populateAudioSettings(false);
+                ui.syncSoundToggle();
+                if (next) ui.playSoundCue('click');
+            });
+        }
+        if (musicTrackSelect) {
+            musicTrackSelect.addEventListener('change', function(event) {
+                ui.applyMusicSelection(event.target.value);
+                ui.playSoundCue('switch');
+            });
+        }
+        if (musicVolumeRange) {
+            musicVolumeRange.addEventListener('input', function(event) {
+                if (!window.Assets || !window.Assets.setVolumes) return;
+                const musicVolume = Math.max(0, Math.min(1, Number(event.target.value) / 100));
+                window.Assets.setVolumes({ musicVolume: musicVolume });
+                ui.populateAudioSettings(false);
+            });
+        }
+        if (sfxVolumeRange) {
+            sfxVolumeRange.addEventListener('input', function(event) {
+                if (!window.Assets || !window.Assets.setVolumes) return;
+                const sfxVolume = Math.max(0, Math.min(1, Number(event.target.value) / 100));
+                window.Assets.setVolumes({ sfxVolume: sfxVolume });
+                ui.populateAudioSettings(false);
+            });
         }
         if (replayIntroBtn) replayIntroBtn.addEventListener('click', this.replayIntro.bind(this));
         if (proceedLevelBtn) proceedLevelBtn.addEventListener('click', function() {
@@ -258,7 +444,7 @@ const ui = {
         if (openResolverBtn) openResolverBtn.addEventListener('click', this.openConflictResolver.bind(this));
         if (resolverCloseBtn) resolverCloseBtn.addEventListener('click', this.closeConflictResolver.bind(this));
         if (resolverStageBtn) resolverStageBtn.addEventListener('click', this.saveAndStageResolver.bind(this));
-        if (introStartBtn) introStartBtn.addEventListener('click', this.closeIntro.bind(this));
+        if (introStartBtn) introStartBtn.addEventListener('click', this.finishIntro.bind(this));
         if (introSkipBtn) introSkipBtn.addEventListener('click', this.skipIntro.bind(this));
         if (introSkipLink) introSkipLink.addEventListener('click', this.skipIntro.bind(this));
         if (downloadCertificateBtn) {
@@ -378,11 +564,16 @@ const ui = {
         this.observeTerminal();
         
         if (window.gameState && !window.gameState.introSeen) {
-            setTimeout(this.showIntro.bind(this), 120);
+            this.setAppShellVisible(false);
+            setTimeout(this.beginBootSequence.bind(this), 120);
         } else if (terminalInput) {
+            this.hideBootOverlay();
+            this.setAppShellVisible(true);
             terminalInput.focus();
         }
 
+        this.populateAudioSettings(false);
+        this.syncSoundToggle();
         this.updateConflictUI();
         if (window.gameEngine && window.gameEngine.renderLiveGitHubState) {
             window.gameEngine.renderLiveGitHubState();
@@ -402,6 +593,7 @@ const ui = {
         const panel = document.getElementById('objectivesPanelContent');
         const fireworks = document.getElementById('objectivesFireworks');
         if (!panel || !fireworks) return;
+        this.playSoundCue('success');
 
         panel.classList.remove('ready');
         fireworks.innerHTML = '';
@@ -427,6 +619,14 @@ const ui = {
         if (e.key === 'Escape' && this.introVisible) {
             e.preventDefault();
             this.skipIntro();
+            return;
+        }
+        if (e.key === 'Escape') {
+            const audioOverlay = document.getElementById('audioSettingsModal');
+            if (audioOverlay && audioOverlay.classList.contains('show')) {
+                e.preventDefault();
+                this.closeAudioSettings();
+            }
         }
     },
 
@@ -446,25 +646,107 @@ const ui = {
         }
     },
 
+    setAppShellVisible: function(visible) {
+        const header = document.getElementById('appShellHeader');
+        const main = document.getElementById('appShellMain');
+        [header, main].forEach(function(el) {
+            if (!el) return;
+            el.classList.toggle('hidden', !visible);
+        });
+    },
+
+    beginBootSequence: function() {
+        const overlay = document.getElementById('bootOverlay');
+        const bar = document.getElementById('bootProgressBar');
+        const status = document.getElementById('bootStatus');
+        const body = document.body;
+        if (!overlay || !bar || !status) {
+            this.showIntro();
+            return;
+        }
+
+        this.setAppShellVisible(false);
+        this.introReadyToStart = false;
+        body.classList.add('booting');
+        body.classList.remove('intro-mode');
+        overlay.classList.remove('hidden');
+        overlay.classList.add('show');
+        bar.style.width = '0%';
+
+        const statuses = [
+            'Preparing the academy halls...',
+            'Summoning the sprite procession...',
+            'Aligning scrolls and starlight...',
+            'Charging the command altar...'
+        ];
+        const started = Date.now();
+        const duration = 1800;
+        if (this.bootTimer) clearInterval(this.bootTimer);
+        this.bootTimer = setInterval(function() {
+            const elapsed = Date.now() - started;
+            const pct = Math.min(100, Math.round((elapsed / duration) * 100));
+            bar.style.width = pct + '%';
+            status.textContent = statuses[Math.min(statuses.length - 1, Math.floor((pct / 100) * statuses.length))];
+            if (pct >= 100) {
+                clearInterval(ui.bootTimer);
+                ui.bootTimer = null;
+                overlay.classList.add('hidden');
+                setTimeout(function() {
+                    overlay.classList.remove('show');
+                    body.classList.remove('booting');
+                    ui.showIntro();
+                }, 650);
+            }
+        }, 90);
+    },
+
+    hideBootOverlay: function() {
+        const overlay = document.getElementById('bootOverlay');
+        if (!overlay) return;
+        overlay.classList.remove('show');
+        overlay.classList.add('hidden');
+        document.body.classList.remove('booting');
+    },
+
     showIntro: function() {
         const overlay = document.getElementById('introOverlay');
         const crawl = document.getElementById('introCrawl');
         const guideOverlay = document.getElementById('levelGuideOverlay');
+        const finale = document.getElementById('introFinale');
         if (!overlay || !crawl) return;
 
         if (guideOverlay) guideOverlay.classList.remove('show');
         if (this.guideTimer) clearTimeout(this.guideTimer);
         this.populateIntro();
         this.introVisible = true;
+        this.introReadyToStart = false;
+        document.body.classList.add('intro-mode');
+        this.setAppShellVisible(false);
         overlay.classList.remove('hidden');
         overlay.classList.add('show');
+        if (finale) finale.classList.remove('show');
         crawl.classList.remove('animating');
         // Force reflow so replay restarts animation.
         overlay.offsetHeight;
-        crawl.classList.add('animating');
+        if (window.IntroSpriteShowcase && window.IntroSpriteShowcase.start) {
+            window.IntroSpriteShowcase.start();
+        }
+        this.playIntroMusic();
+        const preludeDelay = window.IntroSpriteShowcase && window.IntroSpriteShowcase.getPreludeDelay
+            ? window.IntroSpriteShowcase.getPreludeDelay()
+            : 0;
+        setTimeout(function () {
+            if (!ui.introVisible) return;
+            crawl.classList.remove('animating');
+            overlay.offsetHeight;
+            crawl.classList.add('animating');
+        }, preludeDelay);
 
         if (this.introCloseTimer) clearTimeout(this.introCloseTimer);
-        this.introCloseTimer = setTimeout(this.closeIntro.bind(this), 37000);
+        const totalRuntime = window.IntroSpriteShowcase && window.IntroSpriteShowcase.getTotalRuntime
+            ? window.IntroSpriteShowcase.getTotalRuntime()
+            : 37000;
+        this.introCloseTimer = setTimeout(this.showIntroReadyPrompt.bind(this), totalRuntime);
     },
 
     replayIntro: function() {
@@ -472,28 +754,51 @@ const ui = {
     },
 
     skipIntro: function() {
-        this.closeIntro();
+        this.finishIntro();
     },
 
-    closeIntro: function() {
-        const overlay = document.getElementById('introOverlay');
+    showIntroReadyPrompt: function() {
+        const finale = document.getElementById('introFinale');
         const crawl = document.getElementById('introCrawl');
-        const terminalInput = document.getElementById('terminalInput');
+        const overlay = document.getElementById('introOverlay');
         if (this.introCloseTimer) {
             clearTimeout(this.introCloseTimer);
             this.introCloseTimer = null;
         }
+        this.introReadyToStart = true;
+        if (crawl) crawl.classList.remove('animating');
+        if (finale) finale.classList.add('show');
+        if (overlay) overlay.classList.add('show');
+    },
+
+    finishIntro: function() {
+        const overlay = document.getElementById('introOverlay');
+        const crawl = document.getElementById('introCrawl');
+        const finale = document.getElementById('introFinale');
+        const terminalInput = document.getElementById('terminalInput');
 
         if (crawl) crawl.classList.remove('animating');
+        if (finale) finale.classList.remove('show');
         if (overlay) {
             overlay.classList.remove('show');
             overlay.classList.add('hidden');
         }
+        if (window.IntroSpriteShowcase && window.IntroSpriteShowcase.stop) {
+            window.IntroSpriteShowcase.stop();
+        }
+        this.detachIntroMusicRetry();
 
         this.introVisible = false;
+        this.introReadyToStart = false;
+        document.body.classList.remove('intro-mode');
+        this.setAppShellVisible(true);
         if (window.gameState) {
             window.gameState.introSeen = true;
             if (window.gameEngine && window.gameEngine.saveGame) window.gameEngine.saveGame();
+        }
+
+        if (window.Assets && window.Assets.playMusic) {
+            window.Assets.playMusic();
         }
 
         if (this.pendingGuideLevel !== null) {
@@ -508,6 +813,43 @@ const ui = {
 
     shouldDelayLevelGuide: function() {
         return this.introVisible;
+    },
+
+    playIntroMusic: function() {
+        if (!window.Assets || !window.Assets.playMusic) return;
+        const cue = window.IntroSpriteShowcase && window.IntroSpriteShowcase.getMusicCue
+            ? window.IntroSpriteShowcase.getMusicCue()
+            : 'a_night_full_of_stars';
+        window.Assets.playMusic(cue, { force: true, volume: 0.2 });
+        this.attachIntroMusicRetry();
+    },
+
+    attachIntroMusicRetry: function() {
+        if (this.introMusicRetryBound) return;
+        const self = this;
+        this.introMusicRetryBound = function() {
+            if (!self.introVisible || !window.Assets || !window.Assets.playMusic) return;
+            const cue = window.IntroSpriteShowcase && window.IntroSpriteShowcase.getMusicCue
+                ? window.IntroSpriteShowcase.getMusicCue()
+                : 'a_night_full_of_stars';
+            window.Assets.playMusic(cue, { force: true, volume: 0.2 });
+            self.detachIntroMusicRetry();
+        };
+        document.addEventListener('pointerdown', this.introMusicRetryBound, true);
+        document.addEventListener('pointermove', this.introMusicRetryBound, true);
+        document.addEventListener('wheel', this.introMusicRetryBound, true);
+        document.addEventListener('touchstart', this.introMusicRetryBound, true);
+        document.addEventListener('keydown', this.introMusicRetryBound, true);
+    },
+
+    detachIntroMusicRetry: function() {
+        if (!this.introMusicRetryBound) return;
+        document.removeEventListener('pointerdown', this.introMusicRetryBound, true);
+        document.removeEventListener('pointermove', this.introMusicRetryBound, true);
+        document.removeEventListener('wheel', this.introMusicRetryBound, true);
+        document.removeEventListener('touchstart', this.introMusicRetryBound, true);
+        document.removeEventListener('keydown', this.introMusicRetryBound, true);
+        this.introMusicRetryBound = null;
     },
 
     requestLevelGuide: function(levelIndex) {
@@ -648,10 +990,12 @@ const ui = {
 
     updateConflictUI: function() {
         const btn = document.getElementById('openResolverBtn');
+        const indicator = document.getElementById('conflictIndicator');
         const inProgress = !!(window.gameState && window.gameState.gitState && window.gameState.gitState.mergeInProgress);
         const lesson = (window.lessons && window.lessons[window.gameState.currentLevel]) ? window.lessons[window.gameState.currentLevel] : null;
         const resolverEnabled = !!(lesson && lesson.useConflictResolver);
         if (btn) btn.style.display = (inProgress && resolverEnabled) ? 'inline-block' : 'none';
+        if (indicator) indicator.classList.toggle('show', inProgress);
     },
 
     parseFirstConflictFile: function() {
@@ -1039,17 +1383,25 @@ const ui = {
         }
     },
     
-    // Toggle sound
+    // Open audio settings
     toggleSound: function(e) {
-        const button = e.currentTarget || e.target;
-        const muted = button.getAttribute('data-muted') === 'true';
-        const nextMuted = !muted;
-        button.setAttribute('data-muted', nextMuted ? 'true' : 'false');
-        button.setAttribute('aria-pressed', nextMuted ? 'true' : 'false');
-        button.setAttribute('aria-label', nextMuted ? 'Unmute sound effects' : 'Mute sound effects');
+        this.openAudioSettings();
+    },
 
-        const label = button.querySelector('.sound-label');
-        if (label) label.textContent = nextMuted ? 'Sound Off' : 'Sound On';
+    exportDebugSession: function() {
+        const logs = window.DevLogger && typeof window.DevLogger.export === 'function'
+            ? window.DevLogger.export()
+            : JSON.stringify([], null, 2);
+        const blob = new Blob([logs], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'dev-log.json';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+        this.showHintToast('Debug session exported.');
     },
     
     // Process any command
@@ -1069,6 +1421,9 @@ const ui = {
     },
 
     processSingleCommand: async function(input) {
+        if (window.DevLogger && typeof window.DevLogger.log === 'function') {
+            window.DevLogger.log('command.enter', { input: input });
+        }
         const terminalHistory = document.getElementById('terminalHistory');
         
         if (this.terminalMode === 'xterm' && this.xterm) {
@@ -1133,11 +1488,22 @@ const ui = {
             result = await result;
         }
 
+        const delayMs = 50 + Math.floor(Math.random() * 101);
+        await new Promise(function(resolve) {
+            setTimeout(resolve, delayMs);
+        });
+
         if (result && !result.isSystem) {
             this.writeToTerminal(result.message || '', result.isRaw ? false : !result.success);
 
             if (result.success && result.xp) {
                 window.gameEngine.addXP(result.xp);
+            }
+            if (result.success && cmd !== 'git') {
+                this.playSoundCue('click');
+            }
+            if (result.success && window.AmbientEngine && typeof window.AmbientEngine.markProgress === 'function') {
+                window.AmbientEngine.markProgress();
             }
         }
         
@@ -1151,6 +1517,16 @@ const ui = {
             ? window.lessonGuides.getHint(window.gameState.currentLevel, input, result, window.gameState)
             : '';
         if (hint) this.showHintToast(hint);
+        if (result && result.success === false) {
+            if (cmd !== 'git') {
+                this.playSoundCue('error');
+            }
+            if (window.DevLogger && typeof window.DevLogger.log === 'function') {
+                window.DevLogger.log('error', { message: result.message || 'command failed', command: input });
+            }
+        } else if (window.DevLogger && typeof window.DevLogger.log === 'function') {
+            window.DevLogger.log('command.success', { input: input, result: result && result.message ? result.message : '' });
+        }
         // Conflict resolver is opt-in by lesson (future PR-style scenarios).
         
         // Scroll to show input
@@ -1165,6 +1541,10 @@ const ui = {
     printOutput: function(message, isError) {
         this.writeToTerminal(message, isError);
         this.scrollToInput();
+    },
+
+    isIntroVisible: function() {
+        return !!this.introVisible;
     },
     
     // Show XP popup

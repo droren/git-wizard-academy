@@ -1,4 +1,12 @@
 const assert = require('assert');
+
+global.window = {
+  configStore: { load: () => ({}) },
+  fileSystemModule: {
+    readFile: () => null
+  }
+};
+
 const { evaluateObjective } = require('../js/objective-rules.js');
 
 function baseState() {
@@ -15,6 +23,8 @@ function baseState() {
     },
     gitState: {
       branches: ['main'],
+      refs: { main: null },
+      commitBySha: {},
       index: {},
       config: {
         local: {},
@@ -24,12 +34,19 @@ function baseState() {
   };
 }
 
+function setWorkingFile(content) {
+  window.fileSystemModule = {
+    readFile: () => ({ content })
+  };
+}
+
 function run() {
   // Level 1
   {
     const s = baseState();
     s.gitState.config.global['user.name'] = 'Dennis';
     s.gitState.config.global['user.email'] = 'd@example.com';
+    s.flags.identityConfirmed = true;
     s.flags.repoInited = true;
     assert.strictEqual(evaluateObjective(0, 2, s), false);
     s.flags.stagedOnce = true;
@@ -72,9 +89,24 @@ function run() {
   // Level 4 conflict sequence
   {
     const s = baseState();
+    s.levelContext.startHeadSha = 'main-123';
+    s.levelContext.conflictMergeHead = 'feature-456';
+    s.levelContext.expectedConflictResolution = 'const mode = "merged"; console.log(mode + " timeline");';
+    s.gitState.currentBranch = 'main';
+    s.gitState.refs.main = 'merge-999';
+    s.gitState.commitBySha['merge-999'] = {
+      parents: ['main-123', 'feature-456']
+    };
     assert.strictEqual(evaluateObjective(3, 0, s), false);
     s.flags.conflictCreated = true;
+    setWorkingFile('<<<<<<< HEAD\nmain\n=======\nfeature\n>>>>>>> feature');
+    assert.strictEqual(evaluateObjective(3, 1, s), true);
     s.flags.conflictMarkersIdentified = true;
+    setWorkingFile('const mode = "main"; console.log(mode + " timeline");');
+    assert.strictEqual(evaluateObjective(3, 2, s), false);
+    s.flags.conflictResolvedCandidate = true;
+    setWorkingFile('const mode = "merged"; console.log(mode + " timeline");');
+    assert.strictEqual(evaluateObjective(3, 2, s), true);
     s.flags.conflictResolved = true;
     s.flags.mergeCompleted = true;
     assert.strictEqual(evaluateObjective(3, 3, s), true);

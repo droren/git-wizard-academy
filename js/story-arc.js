@@ -266,7 +266,7 @@
 
         return '<div class="story-config">' +
             '<div class="story-config-title">Course Environment: ~/.gitconfig</div>' +
-            '<p>This is your course-wide Git environment. Global settings persist across levels and can be tuned any time with <code>git config --global ...</code>.</p>' +
+            '<p>This is your course-wide Git environment. Your home directory holds the hidden config, and your repositories live in project folders under <code>~/projects/</code>. Global settings persist across levels and can be tuned any time with <code>git config --global ...</code>.</p>' +
             '<pre><code>' + content + '</code></pre>' +
             '</div>';
     }

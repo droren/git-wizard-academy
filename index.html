@@ -11,6 +11,15 @@
     <link rel="stylesheet" href="css/main.css">
 </head>
 <body>
+    <div class="boot-overlay show" id="bootOverlay">
+        <div class="boot-panel">
+            <div class="boot-title">Loading Git Wizard Academy</div>
+            <div class="boot-status" id="bootStatus">Preparing the academy halls...</div>
+            <div class="boot-progress-shell">
+                <div class="boot-progress-bar" id="bootProgressBar"></div>
+            </div>
+        </div>
+    </div>
     <svg class="ui-icon-sprite" aria-hidden="true" focusable="false">
         <symbol id="icon-volume-on" viewBox="0 0 24 24">
             <path d="M14 5.23v13.54a1 1 0 0 1-1.64.77L7.5 15H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h3.5l4.86-4.54A1 1 0 0 1 14 5.23Z" fill="currentColor"/>
@@ -58,16 +67,21 @@
         <div class="backdrop-grid"></div>
     </div>
     <!-- Sound Toggle -->
-    <button class="sound-toggle" id="soundToggle" type="button" title="Toggle Sound Effects" aria-label="Mute sound effects" aria-pressed="false" data-muted="false">
+    <button class="sound-toggle" id="audioSettingsBtn" type="button" title="Audio Settings" aria-label="Open audio settings" data-muted="false">
         <svg class="ui-icon sound-icon sound-on" aria-hidden="true"><use href="#icon-volume-on"></use></svg>
         <svg class="ui-icon sound-icon sound-off" aria-hidden="true"><use href="#icon-volume-off"></use></svg>
-        <span class="sound-label">Sound On</span>
+        <span class="sound-label">Audio</span>
     </button>
 
     <!-- Cinematic Intro -->
     <div class="intro-overlay" id="introOverlay">
         <div class="intro-stars"></div>
         <div class="intro-vignette"></div>
+        <div class="intro-sprite-stage" id="introSpriteStage" aria-hidden="true">
+            <div class="intro-stage-layer intro-stage-layer-back"></div>
+            <div class="intro-stage-layer intro-stage-layer-mid"></div>
+            <div class="intro-stage-layer intro-stage-layer-front"></div>
+        </div>
         <div class="intro-header">
             <div class="intro-badge">⚡ Git Wizard Academy</div>
             <button class="intro-skip-link" id="introSkipLink" type="button">⏭ Skip Intro</button>
@@ -86,10 +100,27 @@
                     </div>
                 </div>
             </div>
+            <div class="intro-sprite-showcase">
+                <div class="intro-sprite-showcase-header">
+                    <div>
+                        <div class="intro-showcase-kicker">Sprite Sandbox</div>
+                        <div class="intro-showcase-title">Kenney candidates running live on the intro page</div>
+                    </div>
+                    <div class="intro-showcase-chips">
+                        <button class="intro-showcase-chip active" data-intro-category="academy" type="button">Academy Crew</button>
+                        <button class="intro-showcase-chip" data-intro-category="aliens" type="button">Space Runners</button>
+                        <button class="intro-showcase-chip" data-intro-category="critters" type="button">Chaos Critters</button>
+                    </div>
+                </div>
+                <div class="intro-sprite-summary" id="introSpriteSummary"></div>
+            </div>
             <div class="intro-controls">
-                <button class="btn btn-primary" id="introStartBtn" type="button">▶ Start Campaign</button>
                 <button class="btn btn-secondary" id="introSkipBtn" type="button">⏭ Skip Intro</button>
                 <div class="intro-hint">Press <kbd>Esc</kbd> to skip at any time.</div>
+            </div>
+            <div class="intro-finale" id="introFinale">
+                <div class="intro-finale-question">Are you ready to become a git wizard ?</div>
+                <button class="btn btn-primary" id="introStartBtn" type="button">Start Game</button>
             </div>
         </div>
     </div>
@@ -99,9 +130,11 @@
             <span>🧌</span><span>⚙️</span><span>🔀</span><span>🍒</span><span>🚀</span>
         </div>
     </div>
+    <div class="conflict-indicator" id="conflictIndicator">⚠ Merge Conflict Boss Active</div>
+    <div class="character-stage" id="characterStage" aria-hidden="true"></div>
 
     <!-- Header -->
-    <header class="header">
+    <header class="header app-shell" id="appShellHeader">
         <div class="header-content">
             <div class="brand-block">
                 <div class="logo">
@@ -126,6 +159,7 @@
                         <svg class="ui-icon" aria-hidden="true"><use href="#icon-package"></use></svg>
                         <span>Export Repo</span>
                     </button>
+                    <button class="panel-action-btn debug-export-btn" id="exportDebugBtn" type="button">Export Debug Session</button>
                     <button class="panel-action-btn live-github-btn" id="liveGitHubBtn" type="button">
                         <svg class="ui-icon" aria-hidden="true"><use href="#icon-cloud"></use></svg>
                         <span>Live GitHub</span>
@@ -165,7 +199,7 @@
     </header>
 
     <!-- Main Container -->
-    <main class="main-container">
+    <main class="main-container app-shell" id="appShellMain">
         <!-- Lesson Panel -->
         <aside class="panel lesson-panel">
             <div class="panel-header">
@@ -314,6 +348,46 @@
             </div>
             <div class="boss-hint-wrap" style="margin-top: 20px; color: var(--text-secondary);">
                 <p>💡 <strong>Hint:</strong> <span id="bossHint">Use git rebase to defeat this boss!</span></p>
+            </div>
+            <div class="boss-conflict-diff" id="bossConflictDiff"></div>
+            <div class="boss-timer" id="bossTimer" style="display:none;">
+                <span>⏱ Merge timer:</span> <strong id="bossTimerValue">--</strong>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audio Settings -->
+    <div class="modal-overlay audio-overlay" id="audioSettingsModal">
+        <div class="modal audio-modal">
+            <div class="modal-icon">🎧</div>
+            <div class="modal-title">Audio Studio</div>
+            <div class="modal-subtitle">Choose music and sound effects independently.</div>
+            <div class="audio-section">
+                <div class="audio-row">
+                    <div class="audio-label">Background Music</div>
+                    <button class="btn btn-secondary audio-toggle-btn" id="musicEnabledToggle" type="button">On</button>
+                </div>
+                <div class="audio-row">
+                    <div class="audio-label">Sound Effects</div>
+                    <button class="btn btn-secondary audio-toggle-btn" id="sfxEnabledToggle" type="button">On</button>
+                </div>
+                <div class="audio-row audio-stack">
+                    <div class="audio-label">Background Track</div>
+                    <select class="audio-select" id="musicTrackSelect"></select>
+                    <div class="audio-credit-popup" id="musicTrackInfo"></div>
+                </div>
+                <div class="audio-row audio-stack">
+                    <div class="audio-label">Music Volume</div>
+                    <input class="audio-slider" id="musicVolumeRange" type="range" min="0" max="100" value="28">
+                </div>
+                <div class="audio-row audio-stack">
+                    <div class="audio-label">SFX Volume</div>
+                    <input class="audio-slider" id="sfxVolumeRange" type="range" min="0" max="100" value="85">
+                </div>
+                <div class="audio-hint" id="audioHint"></div>
+            </div>
+            <div class="modal-buttons">
+                <button class="btn btn-secondary" id="audioSettingsCloseBtn" type="button">Close</button>
             </div>
         </div>
     </div>
@@ -468,6 +542,12 @@
     <script src="js/storage-stores.js"></script>
     <script src="js/repo-model.js"></script>
     <script src="js/file-system.js"></script>
+    <script src="js/dev-logger.js"></script>
+    <script src="js/asset-loader.js"></script>
+    <script src="js/effects.js"></script>
+    <script src="js/character-system.js"></script>
+    <script src="js/intro-sprite-showcase.js"></script>
+    <script src="js/ambient-engine.js"></script>
     <script src="js/shell-commands.js"></script>
     <script src="js/git-commands.js"></script>
     <script src="js/achievements.js"></script>
