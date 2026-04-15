@@ -37,7 +37,24 @@ currentLevel: 0,
         branches: ['main'],
         currentBranch: 'main',
         commits: [],
-        staged: []
+        staged: [],
+        remotes: {
+            origin: {
+                name: 'origin',
+                fetchUrl: 'https://example.com/git-wizard-origin.git',
+                pushUrl: 'https://example.com/git-wizard-origin.git',
+                branches: { main: null }
+            },
+            upstream: {
+                name: 'upstream',
+                fetchUrl: 'https://example.com/git-wizard-upstream.git',
+                pushUrl: 'https://example.com/git-wizard-upstream.git',
+                branches: {}
+            }
+        },
+        remoteRefs: { 'refs/remotes/origin/main': null },
+        tracking: { main: { remote: 'origin', merge: 'refs/heads/main' } },
+        pullRequests: []
     },
     commandHistory: [],
     nanoFile: null,
@@ -117,6 +134,34 @@ const gameEngine = {
         return !!(state && state.connected && state.authenticated);
     },
 
+    isSimulatedRemoteMode: function() {
+        return !this.isLiveGitHubConnected();
+    },
+
+    getSimulatedPullRequests: function() {
+        const gitState = window.gameState.gitState || {};
+        gitState.pullRequests = Array.isArray(gitState.pullRequests) ? gitState.pullRequests : [];
+        return gitState.pullRequests;
+    },
+
+    evaluateSimulatedCi: function(branchName) {
+        const branch = branchName || (window.gameState.gitState && window.gameState.gitState.currentBranch) || 'main';
+        const headSha = window.gameState.gitState && window.gameState.gitState.refs ? window.gameState.gitState.refs[branch] : null;
+        const commit = headSha && window.gameState.gitState && window.gameState.gitState.commitBySha
+            ? window.gameState.gitState.commitBySha[headSha]
+            : null;
+        const snapshot = commit && commit.snapshot ? commit.snapshot : {};
+        const files = Object.keys(snapshot || {});
+        const failingFiles = files.filter(function(name) {
+            const content = String(snapshot[name] || '');
+            return /CI_FAIL|TODO|FIXME|console\.log\(/i.test(content);
+        });
+        return {
+            passed: failingFiles.length === 0,
+            failingFiles: failingFiles
+        };
+    },
+
     getLiveGitHubPayload: function() {
         const state = this.getLiveGitHubState();
         return {
@@ -139,7 +184,7 @@ const gameEngine = {
         const btn = document.getElementById('liveGitHubBtn');
         const summary = state.connected && state.repo
             ? '☁ Live GitHub: ' + (state.repo.owner || '') + '/' + (state.repo.name || '')
-            : '☁ Live GitHub';
+            : '☁ Simulated Remote';
         if (btn) btn.textContent = summary;
     },
 
@@ -266,7 +311,7 @@ const gameEngine = {
         if (status) {
             status.textContent = state.connected && state.repo
                 ? 'Connected to ' + (state.repo.owner || '') + '/' + (state.repo.name || '') + '. You can now create a repo, install CI, push branches, and manage PRs.'
-                : 'Connect a GitHub token to start a live repository session.';
+                : 'No bridge connection detected. Simulated Remote Mode is active: push a branch, open a PR, run CI/review, then merge locally.';
         }
         const token = document.getElementById('liveGitHubToken');
         const repoName = document.getElementById('liveGitHubRepoName');
@@ -396,7 +441,14 @@ const gameEngine = {
     },
 
     pushLiveGitHubRepo: async function() {
-        if (!this.isLiveGitHubConnected()) throw new Error('Connect GitHub first.');
+        if (!this.isLiveGitHubConnected()) {
+            const branch = (document.getElementById('liveGitHubBranch') || {}).value || ((window.gameState.gitState || {}).currentBranch || 'main');
+            const result = await window.gitCommands.push(['-u', 'origin', branch]);
+            this.updateLiveGitHubStatus(result.success
+                ? 'Simulated push complete for ' + branch + '. Next: create a simulated PR.'
+                : ('Simulated push failed: ' + result.message));
+            return { simulated: true, result };
+        }
         const payload = {
             gameState: window.gameState,
             config: window.configStore && window.configStore.load ? window.configStore.load() : {},
@@ -421,7 +473,11 @@ const gameEngine = {
     },
 
     fetchLiveGitHubRepo: async function() {
-        if (!this.isLiveGitHubConnected()) throw new Error('Connect GitHub first.');
+        if (!this.isLiveGitHubConnected()) {
+            const result = await window.gitCommands.fetch(['origin']);
+            this.updateLiveGitHubStatus('Fetched simulated remote refs.');
+            return { simulated: true, result };
+        }
         const payload = {
             gameState: window.gameState,
             config: window.configStore && window.configStore.load ? window.configStore.load() : {}
@@ -434,7 +490,11 @@ const gameEngine = {
     },
 
     pullLiveGitHubRepo: async function() {
-        if (!this.isLiveGitHubConnected()) throw new Error('Connect GitHub first.');
+        if (!this.isLiveGitHubConnected()) {
+            const result = await window.gitCommands.pull([]);
+            this.updateLiveGitHubStatus(result.success ? 'Pulled from simulated remote.' : 'Simulated pull failed: ' + result.message);
+            return { simulated: true, result };
+        }
         const payload = {
             gameState: window.gameState,
             config: window.configStore && window.configStore.load ? window.configStore.load() : {}
@@ -447,7 +507,25 @@ const gameEngine = {
     },
 
     createLiveGitHubPr: async function() {
-        if (!this.isLiveGitHubConnected()) throw new Error('Connect GitHub first.');
+        if (!this.isLiveGitHubConnected()) {
+            const headBranch = (document.getElementById('liveGitHubBranch') || {}).value || ((window.gameState.gitState || {}).currentBranch || 'main');
+            const prs = this.getSimulatedPullRequests();
+            const prNumber = prs.length + 1;
+            const pr = {
+                number: prNumber,
+                head: { ref: headBranch, sha: window.gameState.gitState.refs[headBranch] || null },
+                base: { ref: 'main', sha: window.gameState.gitState.refs.main || null },
+                title: 'Simulated lesson PR',
+                state: 'open',
+                checks: { status: 'pending', passed: false, failingFiles: [] },
+                review: { approved: false, notes: [] },
+                createdAt: new Date().toISOString()
+            };
+            prs.push(pr);
+            this.updateLiveGitHubStatus('Created simulated PR #' + pr.number + ' from ' + headBranch + ' → main. Run Review/CI next.');
+            this.syncLiveGitHubState({ lastPr: pr });
+            return { simulated: true, pr };
+        }
         const payload = {
             gameState: window.gameState,
             config: window.configStore && window.configStore.load ? window.configStore.load() : {},
@@ -467,7 +545,29 @@ const gameEngine = {
     },
 
     runLiveGitHubReviewBot: async function() {
-        if (!this.isLiveGitHubConnected()) throw new Error('Connect GitHub first.');
+        if (!this.isLiveGitHubConnected()) {
+            const state = this.getLiveGitHubState();
+            if (!state.lastPr || !state.lastPr.number) throw new Error('Create a pull request first.');
+            const prs = this.getSimulatedPullRequests();
+            const pr = prs.find(function(item) { return item.number === state.lastPr.number; });
+            if (!pr) throw new Error('Simulated PR not found.');
+            const ci = this.evaluateSimulatedCi(pr.head.ref);
+            pr.checks = {
+                status: ci.passed ? 'success' : 'failed',
+                passed: ci.passed,
+                failingFiles: ci.failingFiles
+            };
+            pr.review = {
+                approved: ci.passed,
+                notes: ci.passed ? ['All simulated checks passed.'] : ['CI failed for: ' + ci.failingFiles.join(', ')]
+            };
+            if (!ci.passed) {
+                this.updateLiveGitHubStatus('Simulated review blocked PR #' + pr.number + ': CI failed for ' + ci.failingFiles.join(', ') + '.');
+                return { simulated: true, result: { problems: ci.failingFiles, merged: false } };
+            }
+            const mergeResult = await this.mergeLiveGitHubPr();
+            return { simulated: true, result: { problems: [], merged: !!mergeResult } };
+        }
         const state = this.getLiveGitHubState();
         if (!state.lastPr || !state.lastPr.number) throw new Error('Create a pull request first.');
         const result = await window.liveGitHubBridge.reviewBot({
@@ -485,7 +585,22 @@ const gameEngine = {
     },
 
     mergeLiveGitHubPr: async function() {
-        if (!this.isLiveGitHubConnected()) throw new Error('Connect GitHub first.');
+        if (!this.isLiveGitHubConnected()) {
+            const state = this.getLiveGitHubState();
+            if (!state.lastPr || !state.lastPr.number) throw new Error('Create a pull request first.');
+            const prs = this.getSimulatedPullRequests();
+            const pr = prs.find(function(item) { return item.number === state.lastPr.number; });
+            if (!pr) throw new Error('Simulated PR not found.');
+            if (!pr.checks || !pr.checks.passed) throw new Error('Cannot merge simulated PR #' + pr.number + ': checks are not green.');
+            const base = pr.base && pr.base.ref ? pr.base.ref : 'main';
+            const source = pr.head && pr.head.ref ? pr.head.ref : '';
+            if (!source || !window.gameState.gitState.refs[source]) throw new Error('Source branch is missing.');
+            window.gameState.gitState.refs[base] = window.gameState.gitState.refs[source];
+            pr.state = 'merged';
+            pr.mergedAt = new Date().toISOString();
+            this.updateLiveGitHubStatus('Merged simulated PR #' + pr.number + ' into ' + base + '.');
+            return { simulated: true, pr };
+        }
         const state = this.getLiveGitHubState();
         if (!state.lastPr || !state.lastPr.number) throw new Error('Create a pull request first.');
         const result = await window.liveGitHubBridge.mergePullRequest({
@@ -620,6 +735,27 @@ const gameEngine = {
         if (!Array.isArray(window.gameState.commandHistory)) window.gameState.commandHistory = [];
         if (!window.gameState.flags) window.gameState.flags = {};
         if (typeof window.gameState.introSeen !== 'boolean') window.gameState.introSeen = false;
+        if (!window.gameState.gitState || typeof window.gameState.gitState !== 'object') window.gameState.gitState = {};
+        if (!window.gameState.gitState.remotes) window.gameState.gitState.remotes = {};
+        if (!window.gameState.gitState.remotes.origin) {
+            window.gameState.gitState.remotes.origin = {
+                name: 'origin',
+                fetchUrl: 'https://example.com/git-wizard-origin.git',
+                pushUrl: 'https://example.com/git-wizard-origin.git',
+                branches: {}
+            };
+        }
+        if (!window.gameState.gitState.remotes.upstream) {
+            window.gameState.gitState.remotes.upstream = {
+                name: 'upstream',
+                fetchUrl: 'https://example.com/git-wizard-upstream.git',
+                pushUrl: 'https://example.com/git-wizard-upstream.git',
+                branches: {}
+            };
+        }
+        if (!window.gameState.gitState.remoteRefs) window.gameState.gitState.remoteRefs = {};
+        if (!window.gameState.gitState.tracking) window.gameState.gitState.tracking = {};
+        if (!Array.isArray(window.gameState.gitState.pullRequests)) window.gameState.gitState.pullRequests = [];
 
         this.syncGlobalEnvironmentConfig();
 
@@ -788,7 +924,24 @@ const gameEngine = {
             currentBranch: lesson.initialGitState.currentBranch || 'main',
             commits: lesson.initialGitState.commits ? [...lesson.initialGitState.commits] : [],
             staged: [],
-            trackedFiles: {}  // Track committed files
+            trackedFiles: {},  // Track committed files
+            remotes: {
+                origin: {
+                    name: 'origin',
+                    fetchUrl: 'https://example.com/git-wizard-origin.git',
+                    pushUrl: 'https://example.com/git-wizard-origin.git',
+                    branches: {}
+                },
+                upstream: {
+                    name: 'upstream',
+                    fetchUrl: 'https://example.com/git-wizard-upstream.git',
+                    pushUrl: 'https://example.com/git-wizard-upstream.git',
+                    branches: {}
+                }
+            },
+            remoteRefs: {},
+            tracking: {},
+            pullRequests: []
         };
 
 
@@ -912,6 +1065,11 @@ const gameEngine = {
                 window.gameState.gitState.commits = seededCommits;
                 window.gameState.gitState.commitBySha = commitBySha;
                 window.gameState.gitState.refs = Object.assign({}, headsByBranch);
+                window.gameState.gitState.remotes.origin.branches = Object.assign({}, headsByBranch);
+                Object.keys(headsByBranch).forEach(function(branchName) {
+                    window.gameState.gitState.remoteRefs['refs/remotes/origin/' + branchName] = headsByBranch[branchName];
+                    window.gameState.gitState.tracking[branchName] = { remote: 'origin', merge: 'refs/heads/' + branchName };
+                });
                 window.gameState.gitState.headRef = 'refs/heads/' + (lesson.initialGitState.currentBranch || 'main');
                 window.gameState.gitState.head = headsByBranch[lesson.initialGitState.currentBranch || 'main'] || null;
                 window.gameState.gitState.index = {};

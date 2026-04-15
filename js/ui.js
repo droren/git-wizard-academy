@@ -290,6 +290,12 @@ const ui = {
         });
         if (liveGitHubConnectBtn) liveGitHubConnectBtn.addEventListener('click', async function() {
             if (window.gameEngine && window.gameEngine.connectLiveGitHub) {
+                if (window.gameEngine.isSimulatedRemoteMode && window.gameEngine.isSimulatedRemoteMode() && (!window.liveGitHubBridge || typeof window.liveGitHubBridge.connect !== 'function')) {
+                    if (window.gameEngine.updateLiveGitHubStatus) {
+                        window.gameEngine.updateLiveGitHubStatus('Live bridge unavailable. Continuing in Simulated Remote Mode.');
+                    }
+                    return;
+                }
                 try {
                     await window.gameEngine.connectLiveGitHub();
                 } catch (err) {
@@ -301,6 +307,12 @@ const ui = {
         });
         if (liveGitHubCreateRepoBtn) liveGitHubCreateRepoBtn.addEventListener('click', async function() {
             if (window.gameEngine && window.gameEngine.createLiveGitHubRepo) {
+                if (window.gameEngine.isSimulatedRemoteMode && window.gameEngine.isSimulatedRemoteMode()) {
+                    if (window.gameEngine.updateLiveGitHubStatus) {
+                        window.gameEngine.updateLiveGitHubStatus('Simulated mode does not require creating a hosted repo. Push your branch and open a PR.');
+                    }
+                    return;
+                }
                 try {
                     await window.gameEngine.createLiveGitHubRepo();
                 } catch (err) {
