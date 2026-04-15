@@ -16,6 +16,12 @@ function extractLessons() {
   return mod.exports;
 }
 
+function lessonText(lesson) {
+  return [lesson.title, lesson.description, ...(lesson.objectives || []), lesson.content || '']
+    .join(' ')
+    .toLowerCase();
+}
+
 function run() {
   const lessons = extractLessons();
   assert(Array.isArray(lessons), 'lessons should be an array');
@@ -33,6 +39,34 @@ function run() {
       assert(Array.isArray(commit.files) && commit.files.length >= 1, `level ${i + 1} seed commit ${idx + 1} should reference at least one file`);
     });
   }
+
+  const byTier = lessons.reduce((acc, lesson) => {
+    acc[lesson.tier] = acc[lesson.tier] || [];
+    acc[lesson.tier].push(lesson);
+    return acc;
+  }, {});
+
+  const requiredPerTier = {
+    'Must-Know': ['config', 'init', 'stage', 'commit'],
+    'Good-to-Know': ['branch', 'switch', 'merge', 'conflict'],
+    'Template Knight': ['stash', 'tag', 'alias', 'rebase'],
+    'Git Wizard': ['reflog', 'reset', 'cherry-pick', 'bisect'],
+    'Grand Git Wizard': ['origin', 'upstream', 'push', 'fetch', 'pull request', 'review', 'ci', 'merge']
+  };
+
+  Object.keys(requiredPerTier).forEach((tier) => {
+    const tierLessons = byTier[tier] || [];
+    assert.strictEqual(tierLessons.length, 2, `${tier} should have exactly two levels`);
+
+    const combined = tierLessons.map(lessonText).join(' ');
+    requiredPerTier[tier].forEach((topic) => {
+      assert(combined.includes(topic), `${tier} should include topic: ${topic}`);
+    });
+
+    const capstones = tierLessons.filter((l) => l.tierIsCapstone);
+    assert.strictEqual(capstones.length, 1, `${tier} should have one capstone`);
+    assert(lessonText(capstones[0]).includes('capstone'), `${tier} capstone should explicitly reference capstone`);
+  });
 
   console.log('lesson-scenarios: all tests passed');
 }
