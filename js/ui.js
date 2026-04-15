@@ -1041,7 +1041,15 @@ const ui = {
     
     // Toggle sound
     toggleSound: function(e) {
-        e.target.textContent = e.target.textContent === '🔊' ? '🔇' : '🔊';
+        const button = e.currentTarget || e.target;
+        const muted = button.getAttribute('data-muted') === 'true';
+        const nextMuted = !muted;
+        button.setAttribute('data-muted', nextMuted ? 'true' : 'false');
+        button.setAttribute('aria-pressed', nextMuted ? 'true' : 'false');
+        button.setAttribute('aria-label', nextMuted ? 'Unmute sound effects' : 'Mute sound effects');
+
+        const label = button.querySelector('.sound-label');
+        if (label) label.textContent = nextMuted ? 'Sound Off' : 'Sound On';
     },
     
     // Process any command

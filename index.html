@@ -4,13 +4,64 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Git Wizard Academy - Master the Command Line</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.5.0/css/xterm.min.css">
     <link rel="stylesheet" href="css/main.css">
 </head>
 <body>
+    <svg class="ui-icon-sprite" aria-hidden="true" focusable="false">
+        <symbol id="icon-volume-on" viewBox="0 0 24 24">
+            <path d="M14 5.23v13.54a1 1 0 0 1-1.64.77L7.5 15H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h3.5l4.86-4.54A1 1 0 0 1 14 5.23Z" fill="currentColor"/>
+            <path d="M17.54 8.46a1 1 0 0 1 1.41 0 5 5 0 0 1 0 7.08 1 1 0 1 1-1.41-1.41 3 3 0 0 0 0-4.26 1 1 0 0 1 0-1.41Z" fill="currentColor"/>
+            <path d="M19.66 6.34a1 1 0 0 1 1.42 0 8 8 0 0 1 0 11.32 1 1 0 1 1-1.42-1.41 6 6 0 0 0 0-8.5 1 1 0 0 1 0-1.41Z" fill="currentColor"/>
+        </symbol>
+        <symbol id="icon-volume-off" viewBox="0 0 24 24">
+            <path d="M14 5.23v13.54a1 1 0 0 1-1.64.77L7.5 15H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h3.5l4.86-4.54A1 1 0 0 1 14 5.23Z" fill="currentColor"/>
+            <path d="M18.3 9.29a1 1 0 0 1 1.4 1.42L18.4 12l1.3 1.29a1 1 0 0 1-1.4 1.42L17 13.41l-1.29 1.3a1 1 0 0 1-1.42-1.42L15.59 12l-1.3-1.29a1 1 0 0 1 1.42-1.42L17 10.59l1.29-1.3Z" fill="currentColor"/>
+        </symbol>
+        <symbol id="icon-replay" viewBox="0 0 24 24">
+            <path d="M12 5a7 7 0 1 1-6.32 10H3.5a1 1 0 0 1-.8-1.6l2.9-3.87a1 1 0 0 1 1.6 0l2.9 3.87A1 1 0 0 1 9.3 15H7.9A5 5 0 1 0 12 7h-1.59a1 1 0 1 1 0-2H12Z" fill="currentColor"/>
+        </symbol>
+        <symbol id="icon-package" viewBox="0 0 24 24">
+            <path d="M11.45 2.11a1.5 1.5 0 0 1 1.1 0l7 2.8A1.5 1.5 0 0 1 20.5 6.3v11.4a1.5 1.5 0 0 1-.95 1.39l-7 2.8a1.5 1.5 0 0 1-1.1 0l-7-2.8A1.5 1.5 0 0 1 3.5 17.7V6.3a1.5 1.5 0 0 1 .95-1.39l7-2.8Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            <path d="M4 6.5 12 10l8-3.5M12 21.5V10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="icon-cloud" viewBox="0 0 24 24">
+            <path d="M7 18a4 4 0 1 1 .76-7.93A5.5 5.5 0 0 1 18.5 11a3.5 3.5 0 1 1 .5 7H7Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="icon-tree" viewBox="0 0 24 24">
+            <path d="M12 3a4 4 0 0 1 4 4v1.17A3.99 3.99 0 0 1 18 11.5c0 1.78-1.16 3.29-2.77 3.82A3.5 3.5 0 0 1 12 18a3.5 3.5 0 0 1-3.23-2.68A4 4 0 0 1 6 11.5c0-1.4.72-2.64 1.82-3.36A4.01 4.01 0 0 1 12 3Z" fill="currentColor"/>
+            <path d="M12 18v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="icon-terminal" viewBox="0 0 24 24">
+            <path d="m5 7 4 5-4 5M12 17h7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="icon-target" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/>
+            <circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+            <circle cx="12" cy="12" r="1.8" fill="currentColor"/>
+        </symbol>
+        <symbol id="icon-map" viewBox="0 0 24 24">
+            <path d="M4.5 6.2 9 4l6 2.2L19.5 4A1 1 0 0 1 21 4.93v12.87a1 1 0 0 1-.55.89L15 21l-6-2.2L4.5 21A1 1 0 0 1 3 20.07V7.1a1 1 0 0 1 .55-.9Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            <path d="M9 4v14.8M15 6.2V21" fill="none" stroke="currentColor" stroke-width="1.8"/>
+        </symbol>
+        <symbol id="icon-badge" viewBox="0 0 24 24">
+            <path d="M12 3 8.8 6.2 4.5 7l1.8 4.1L5.5 16l4.3.8L12 20l2.2-3.2 4.3-.8-1.8-4.9L19.5 7l-4.3-.8L12 3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            <circle cx="12" cy="11.5" r="2.2" fill="currentColor"/>
+        </symbol>
+    </svg>
+    <div class="app-backdrop" aria-hidden="true">
+        <div class="backdrop-orb orb-one"></div>
+        <div class="backdrop-orb orb-two"></div>
+        <div class="backdrop-grid"></div>
+    </div>
     <!-- Sound Toggle -->
-    <button class="sound-toggle" id="soundToggle" title="Toggle Sound Effects">
-        🔊
+    <button class="sound-toggle" id="soundToggle" type="button" title="Toggle Sound Effects" aria-label="Mute sound effects" aria-pressed="false" data-muted="false">
+        <svg class="ui-icon sound-icon sound-on" aria-hidden="true"><use href="#icon-volume-on"></use></svg>
+        <svg class="ui-icon sound-icon sound-off" aria-hidden="true"><use href="#icon-volume-off"></use></svg>
+        <span class="sound-label">Sound On</span>
     </button>
 
     <!-- Cinematic Intro -->
@@ -52,43 +103,62 @@
     <!-- Header -->
     <header class="header">
         <div class="header-content">
-            <div class="logo">
-                <div class="logo-icon">🌳</div>
-                <div class="logo-text">Git <span>Wizard</span> Academy</div>
-            </div>
-            
-            <div class="header-actions">
-                <button class="panel-action-btn replay-intro-btn" id="replayIntroBtn" type="button">📽 Replay Intro</button>
-                <button class="panel-action-btn export-repo-btn" id="exportRepoBtn" type="button">📦 Export Repo</button>
-                <button class="panel-action-btn live-github-btn" id="liveGitHubBtn" type="button">☁ Live GitHub</button>
+            <div class="brand-block">
+                <div class="logo">
+                    <div class="logo-icon">
+                        <svg class="ui-icon" aria-hidden="true"><use href="#icon-tree"></use></svg>
+                    </div>
+                    <div class="logo-copy">
+                        <div class="logo-eyebrow">Interactive Git Campaign</div>
+                        <div class="logo-text">Git <span>Wizard</span> Academy</div>
+                    </div>
+                </div>
+                <p class="brand-subtitle">Learn real command-line Git through guided missions, boss fights, and live repository drills.</p>
             </div>
 
-            <div class="player-stats">
-                <div class="stat">
-                    <div class="stat-value" id="currentLevel">1</div>
-                    <div class="stat-label">Level</div>
+            <div class="header-utility">
+                <div class="header-actions">
+                    <button class="panel-action-btn replay-intro-btn" id="replayIntroBtn" type="button">
+                        <svg class="ui-icon" aria-hidden="true"><use href="#icon-replay"></use></svg>
+                        <span>Replay Intro</span>
+                    </button>
+                    <button class="panel-action-btn export-repo-btn" id="exportRepoBtn" type="button">
+                        <svg class="ui-icon" aria-hidden="true"><use href="#icon-package"></use></svg>
+                        <span>Export Repo</span>
+                    </button>
+                    <button class="panel-action-btn live-github-btn" id="liveGitHubBtn" type="button">
+                        <svg class="ui-icon" aria-hidden="true"><use href="#icon-cloud"></use></svg>
+                        <span>Live GitHub</span>
+                    </button>
                 </div>
-                <div class="stat">
-                    <div class="stat-value" id="currentTitle">Novice Initiate</div>
-                    <div class="stat-label">Title</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-value"><span id="currentXP">0</span> XP</div>
-                    <div class="stat-label">Total XP</div>
-                    <div class="xp-bar-container">
-                        <div class="xp-bar" id="xpBar" style="width: 0%"></div>
+
+                <div class="player-stats">
+                    <div class="stat stat-focus">
+                        <div class="stat-label">Campaign Rank</div>
+                        <div class="stat-value" id="currentLevel">1</div>
                     </div>
-                </div>
-                <div class="stat">
-                    <div class="streak-display">
-                        <span class="streak-icon">🔥</span>
-                        <span class="streak-count" id="streakCount">0</span>
+                    <div class="stat stat-wide">
+                        <div class="stat-label">Current Title</div>
+                        <div class="stat-value" id="currentTitle">Novice Initiate</div>
                     </div>
-                    <div class="stat-label">Day Streak</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-value" id="commandsUsed">0</div>
-                    <div class="stat-label">Commands</div>
+                    <div class="stat stat-progress">
+                        <div class="stat-label">Experience</div>
+                        <div class="stat-value"><span id="currentXP">0</span> XP</div>
+                        <div class="xp-bar-container">
+                            <div class="xp-bar" id="xpBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="stat streak-stat">
+                        <div class="stat-label">Day Streak</div>
+                        <div class="streak-display">
+                            <span class="streak-icon">🔥</span>
+                            <span class="streak-count" id="streakCount">0</span>
+                        </div>
+                    </div>
+                    <div class="stat stat-focus">
+                        <div class="stat-label">Commands Used</div>
+                        <div class="stat-value" id="commandsUsed">0</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -99,7 +169,10 @@
         <!-- Lesson Panel -->
         <aside class="panel lesson-panel">
             <div class="panel-header">
-                <span>📖 Current Lesson</span>
+                <div class="panel-title-group">
+                    <span class="panel-kicker">Lesson Deck</span>
+                    <span class="panel-title">Current Lesson</span>
+                </div>
                 <div class="panel-actions">
                     <button class="panel-action-btn icon-toggle" data-target="lessonContent" type="button">▾</button>
                     <button class="panel-action-btn" onclick="window.gameEngine.resetLevel()">Reset Level</button>
@@ -113,9 +186,15 @@
         <!-- Terminal Panel -->
         <section class="panel terminal-panel">
             <div class="terminal-header">
-                <div class="terminal-btn red"></div>
-                <div class="terminal-btn yellow"></div>
-                <div class="terminal-btn green"></div>
+                <div class="terminal-status-lights">
+                    <div class="terminal-btn red"></div>
+                    <div class="terminal-btn yellow"></div>
+                    <div class="terminal-btn green"></div>
+                </div>
+                <div class="terminal-badge">
+                    <svg class="ui-icon" aria-hidden="true"><use href="#icon-terminal"></use></svg>
+                    <span>Live CLI Simulator</span>
+                </div>
                 <div class="terminal-title">git-terminal — bash</div>
             </div>
             <div class="terminal-body" id="terminalOutput">
@@ -134,7 +213,10 @@
         <aside class="game-sidebar">
             <section class="panel sidebar-panel">
                 <div class="panel-header">
-                    <span>🎯 Current Objectives</span>
+                    <div class="panel-title-group">
+                        <span class="panel-kicker">Mission Board</span>
+                        <span class="panel-title">Current Objectives</span>
+                    </div>
                     <button class="btn btn-primary proceed-btn" id="proceedLevelBtn" type="button" style="display:none;">Proceed To Next Level</button>
                     <button class="panel-action-btn icon-toggle" data-target="objectivesPanelContent" type="button">▾</button>
                 </div>
@@ -149,7 +231,10 @@
 
             <section class="panel sidebar-panel">
                 <div class="panel-header">
-                    <span>🗺️ Level Map</span>
+                    <div class="panel-title-group">
+                        <span class="panel-kicker">Progress Route</span>
+                        <span class="panel-title">Level Map</span>
+                    </div>
                     <button class="panel-action-btn icon-toggle" data-target="levelMapPanelContent" type="button">▾</button>
                 </div>
                 <div class="panel-content" id="levelMapPanelContent">
@@ -181,7 +266,10 @@
 
             <section class="panel sidebar-panel">
                 <div class="panel-header">
-                    <span>🏆 Achievements</span>
+                    <div class="panel-title-group">
+                        <span class="panel-kicker">Collection</span>
+                        <span class="panel-title">Achievements</span>
+                    </div>
                     <button class="panel-action-btn icon-toggle" data-target="achievementsPanelContent" id="toggleAchievementsBtn" type="button">▾</button>
                 </div>
                 <div class="panel-content achievements-panel-content" id="achievementsPanelContent">
