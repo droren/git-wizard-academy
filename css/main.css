@@ -268,8 +268,7 @@ body.glitch {
     overflow: hidden;
     z-index: 3;
     perspective: 760px;
-    mask-image: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.95) 20%, rgba(0,0,0,0.95) 72%, transparent 100%);
-    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.95) 20%, rgba(0,0,0,0.95) 72%, transparent 100%);
+    background: linear-gradient(180deg, rgba(2, 8, 18, 0) 0%, rgba(2, 8, 18, 0.18) 18%, rgba(2, 8, 18, 0.18) 82%, rgba(2, 8, 18, 0) 100%);
 }
 
 .intro-crawl {
@@ -292,7 +291,7 @@ body.glitch {
 .intro-crawl-inner {
     position: absolute;
     left: 50%;
-    bottom: -32%;
+    top: 74%;
     width: min(720px, 84vw);
     color: #ffe58f;
     text-align: justify;
@@ -430,14 +429,14 @@ body.glitch {
 
 @keyframes crawlRise {
     0% {
-        transform: translateX(-50%) rotateX(24deg) translateY(0);
+        transform: translateX(-50%) rotateX(22deg) translateY(0);
         opacity: 1;
     }
     85% {
         opacity: 1;
     }
     100% {
-        transform: translateX(-50%) rotateX(24deg) translateY(-220%);
+        transform: translateX(-50%) rotateX(22deg) translateY(-220vh);
         opacity: 0;
     }
 }

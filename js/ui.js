@@ -758,6 +758,7 @@ const ui = {
             window.IntroSpriteShowcase.start();
         }
         this.playIntroMusic();
+        this.introCloseTimer = setTimeout(this.handleIntroProcessionReady.bind(this), 6500);
     },
 
     replayIntro: function() {
@@ -772,6 +773,7 @@ const ui = {
         const overlay = document.getElementById('introOverlay');
         const crawl = document.getElementById('introCrawl');
         if (!this.introVisible || !overlay || !crawl) return;
+        if (crawl.classList.contains('animating')) return;
         crawl.classList.remove('animating');
         overlay.offsetHeight;
         crawl.classList.add('animating');
