@@ -27,5 +27,7 @@ node tests/git-merge-conflict-lifecycle.test.js
 node tests/git-hooks-rejection.test.js
 node tests/git-rebase-rewrite.test.js
 node tests/git-remote-transitions.test.js
+node tests/detached-head.test.js
+node tests/git-commands.test.js
 
 echo "all checks passed"

@@ -49,7 +49,14 @@
 
     const repoStore = {
         load: function () {
-            return safeParse(localStorage.getItem(KEYS.repo) || '{}', {});
+            const state = safeParse(localStorage.getItem(KEYS.repo) || '{}', {});
+            if (state && state.gitState && typeof state.gitState === 'object') {
+                state.gitState.remotes = state.gitState.remotes || {};
+                state.gitState.remoteRefs = state.gitState.remoteRefs || {};
+                state.gitState.tracking = state.gitState.tracking || {};
+                state.gitState.pullRequests = Array.isArray(state.gitState.pullRequests) ? state.gitState.pullRequests : [];
+            }
+            return state;
         },
         save: function (repoState) {
             localStorage.setItem(KEYS.repo, JSON.stringify(repoState || {}));

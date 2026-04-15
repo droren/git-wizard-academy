@@ -73,8 +73,17 @@ function ensureGitState() {
     });
     if (!(s.currentBranch in s.refs)) s.refs[s.currentBranch] = null;
 
-    s.headRef = 'refs/heads/' + s.currentBranch;
-    s.head = s.refs[s.currentBranch] || null;
+    if (typeof s.headDetached !== 'boolean') s.headDetached = false;
+    if (!('detachedHeadSha' in s)) s.detachedHeadSha = null;
+    if (!Array.isArray(s.reflog)) s.reflog = [];
+
+    if (s.headDetached) {
+        s.headRef = 'HEAD';
+        s.head = s.detachedHeadSha || null;
+    } else {
+        s.headRef = 'refs/heads/' + s.currentBranch;
+        s.head = s.refs[s.currentBranch] || null;
+    }
 
     if (!Array.isArray(s.commits)) s.commits = [];
     if (!s.commitBySha || typeof s.commitBySha !== 'object') s.commitBySha = {};
@@ -95,7 +104,7 @@ function ensureGitState() {
                 : {};
         }
         s.commitBySha[c.sha] = c;
-        if (c.branch) s.refs[c.branch] = c.sha;
+        if (c.branch && s.refs[c.branch] == null) s.refs[c.branch] = c.sha;
     });
 
     if (!Object.values(s.refs).some(Boolean) && s.commits.length) {
@@ -115,11 +124,172 @@ function ensureGitState() {
     if (typeof s.mergeInProgress !== 'boolean') s.mergeInProgress = false;
     if (!Array.isArray(s.conflictFiles)) s.conflictFiles = [];
 
+    s.remotes = s.remotes || {};
+    if (!s.remotes.origin) {
+        s.remotes.origin = {
+            name: 'origin',
+            fetchUrl: 'https://example.com/git-wizard-origin.git',
+            pushUrl: 'https://example.com/git-wizard-origin.git',
+            branches: {}
+        };
+    }
+    if (!s.remotes.upstream) {
+        s.remotes.upstream = {
+            name: 'upstream',
+            fetchUrl: 'https://example.com/git-wizard-upstream.git',
+            pushUrl: 'https://example.com/git-wizard-upstream.git',
+            branches: {}
+        };
+    }
+    s.remoteRefs = s.remoteRefs || {};
+    s.tracking = s.tracking || {};
+    Object.keys(s.remotes).forEach((remoteName) => {
+        const remote = s.remotes[remoteName];
+        remote.name = remoteName;
+        remote.fetchUrl = remote.fetchUrl || remote.pushUrl || '';
+        remote.pushUrl = remote.pushUrl || remote.fetchUrl || '';
+        remote.branches = remote.branches || {};
+    });
+    Object.keys(s.refs || {}).forEach((localBranch) => {
+        if (!s.tracking[localBranch]) {
+            s.tracking[localBranch] = { remote: 'origin', merge: 'refs/heads/' + localBranch };
+        }
+    });
+
     return s;
 }
 
+function renderRemoteList(state, verbose) {
+    const names = Object.keys(state.remotes || {}).sort();
+    if (!names.length) return '';
+    if (!verbose) return names.join('\n');
+    const lines = [];
+    names.forEach((name) => {
+        const remote = state.remotes[name];
+        lines.push(name + '  ' + (remote.fetchUrl || '') + ' (fetch)');
+        lines.push(name + '  ' + (remote.pushUrl || remote.fetchUrl || '') + ' (push)');
+    });
+    return lines.join('\n');
+}
+
+function getTrackingBranch(state, branchName) {
+    return state.tracking && state.tracking[branchName] ? state.tracking[branchName] : null;
+}
+
+function countAheadBehind(state, localSha, remoteSha) {
+    if (!localSha && !remoteSha) return { ahead: 0, behind: 0 };
+    if (!localSha) return { ahead: 0, behind: 1 };
+    if (!remoteSha) return { ahead: 1, behind: 0 };
+    if (localSha === remoteSha) return { ahead: 0, behind: 0 };
+    const localAnc = getAncestors(state, localSha);
+    const remoteAnc = getAncestors(state, remoteSha);
+    let ahead = 0;
+    let behind = 0;
+    localAnc.forEach((sha) => {
+        if (!remoteAnc.has(sha)) ahead++;
+    });
+    remoteAnc.forEach((sha) => {
+        if (!localAnc.has(sha)) behind++;
+    });
+    return { ahead, behind };
+}
+
+function applyFetchForRemote(state, remoteName, onlyBranch) {
+    const remote = state.remotes[remoteName];
+    if (!remote) return { updated: [], skipped: [] };
+
+    const updated = [];
+    const skipped = [];
+    Object.keys(remote.branches || {}).sort().forEach((branchName) => {
+        if (onlyBranch && onlyBranch !== branchName) return;
+        const sha = remote.branches[branchName] || null;
+        const refName = 'refs/remotes/' + remoteName + '/' + branchName;
+        state.remoteRefs[refName] = sha;
+        if (!(branchName in state.refs)) {
+            skipped.push(branchName);
+            return;
+        }
+        updated.push({ branch: branchName, sha, refName });
+    });
+
+    return { updated, skipped };
+function ensureGitEventHistory() {
+    window.gameState.gitEventHistory = Array.isArray(window.gameState.gitEventHistory)
+        ? window.gameState.gitEventHistory
+        : [];
+    return window.gameState.gitEventHistory;
+}
+
+function captureGitSnapshot() {
+    const state = (window.gameState && window.gameState.gitState) || {};
+    return {
+        currentBranch: state.currentBranch || null,
+        branches: Array.isArray(state.branches) ? state.branches.slice() : [],
+        index: deepClone(state.index || {}),
+        mergeInProgress: !!state.mergeInProgress
+    };
+}
+
+function lessonTierKeyForState() {
+    const game = window.gameState || {};
+    if (game.levelContext && game.levelContext.tierKey) return game.levelContext.tierKey;
+    if (Array.isArray(window.lessons) && Number.isFinite(game.currentLevel)) {
+        const lesson = window.lessons[game.currentLevel];
+        if (lesson && lesson.tierKey) return lesson.tierKey;
+    }
+    return '';
+}
+
+function buildGitEvent(command, args, before, result) {
+    const after = captureGitSnapshot();
+    const event = {
+        type: 'git-command',
+        timestamp: new Date().toISOString(),
+        command: command,
+        args: Array.isArray(args) ? args.slice() : [],
+        success: !!(result && result.success),
+        tierKey: lessonTierKeyForState(),
+        branchBefore: before.currentBranch,
+        branchAfter: after.currentBranch,
+        branch: {
+            before: before.currentBranch,
+            after: after.currentBranch
+        },
+        stagedFilesBefore: Object.keys(before.index || {}).sort(),
+        stagedFilesAfter: Object.keys(after.index || {}).sort()
+    };
+
+    if (command === 'commit') {
+        const commitMessage = parseCommitMessage(Array.isArray(args) ? args : []);
+        const quality = validateCommitMessage(commitMessage);
+        event.commit = {
+            message: commitMessage,
+            messageQuality: quality.ok ? 'acceptable' : 'rejected',
+            qualityReason: quality.ok ? '' : quality.reason
+        };
+    }
+
+    if (command === 'merge') {
+        event.sourceBranch = Array.isArray(args) && args[0] ? args[0] : '';
+        event.targetBranch = before.currentBranch;
+    }
+
+    if (command === 'rebase') {
+        const plainArgs = (Array.isArray(args) ? args : []).filter((arg) => !String(arg).startsWith('-'));
+        event.upstreamRef = plainArgs[0] || '';
+        event.targetBranch = before.currentBranch;
+    }
+
+    return event;
+}
+
+function appendGitEvent(command, args, before, result) {
+    const history = ensureGitEventHistory();
+    history.push(buildGitEvent(command, args, before, result));
+}
+
 function getHeadCommit(state) {
-    const sha = state.refs[state.currentBranch] || null;
+    const sha = state.headDetached ? (state.detachedHeadSha || null) : (state.refs[state.currentBranch] || null);
     return sha ? state.commitBySha[sha] || null : null;
 }
 
@@ -136,8 +306,32 @@ function getHeadSnapshot(state) {
 function refreshTrackedFiles(state) {
     const tree = getHeadTree(state);
     state.trackedFiles = deepClone(tree);
-    state.head = state.refs[state.currentBranch] || null;
-    state.headRef = 'refs/heads/' + state.currentBranch;
+    state.head = state.headDetached ? (state.detachedHeadSha || null) : (state.refs[state.currentBranch] || null);
+    state.headRef = state.headDetached ? 'HEAD' : ('refs/heads/' + state.currentBranch);
+}
+
+function getHeadSha(state) {
+    return state.headDetached ? (state.detachedHeadSha || null) : (state.refs[state.currentBranch] || null);
+}
+
+function writeHeadRef(state) {
+    const fs = window.fileSystemModule;
+    if (state.headDetached) {
+        fs.writeFile('.git/HEAD', state.detachedHeadSha || '');
+        return;
+    }
+    fs.writeFile('.git/HEAD', 'ref: refs/heads/' + state.currentBranch);
+}
+
+function appendReflog(state, message, sha) {
+    const outSha = sha || getHeadSha(state) || null;
+    state.reflog = state.reflog || [];
+    state.reflog.push({
+        sha: outSha,
+        shortSha: outSha ? outSha.slice(0, 7) : '',
+        message: message || '',
+        timestamp: new Date().toISOString()
+    });
 }
 
 function listWorkingFiles() {
@@ -298,8 +492,7 @@ function findMergeBase(state, a, b) {
 }
 
 function createCommit(state, opts) {
-    const fs = window.fileSystemModule;
-    const parent = state.refs[state.currentBranch] || null;
+    const parent = getHeadSha(state);
     const parents = Array.isArray(opts.parents) && opts.parents.length ? opts.parents : (parent ? [parent] : []);
     const baseTree = parent ? deepClone(getHeadTree(state)) : {};
     const baseSnapshot = parent ? deepClone(getHeadSnapshot(state)) : {};
@@ -348,7 +541,7 @@ function createCommit(state, opts) {
         author: authorName + ' <' + authorEmail + '>',
         authorName,
         authorEmail,
-        branch: state.currentBranch,
+        branch: state.headDetached ? null : state.currentBranch,
         date: timestamp,
         timestamp,
         files: changedFiles,
@@ -361,11 +554,11 @@ function createCommit(state, opts) {
 
     state.commits.push(commit);
     state.commitBySha[sha] = commit;
-    state.refs[state.currentBranch] = sha;
+    if (state.headDetached) state.detachedHeadSha = sha;
+    else state.refs[state.currentBranch] = sha;
     refreshTrackedFiles(state);
-
-    // Persist a lightweight ref to .git/HEAD for observability in the virtual FS.
-    fs.writeFile('.git/HEAD', 'ref: refs/heads/' + state.currentBranch);
+    writeHeadRef(state);
+    appendReflog(state, 'commit: ' + message, sha);
 
     return { commit, changedFiles };
 }
@@ -389,11 +582,39 @@ function checkoutBranchSnapshot(state, branchName) {
     });
 
     state.currentBranch = branchName;
+    state.headDetached = false;
+    state.detachedHeadSha = null;
     state.headRef = 'refs/heads/' + branchName;
     state.head = targetSha;
     state.index = {};
     state.staged = [];
     refreshTrackedFiles(state);
+    writeHeadRef(state);
+}
+
+function checkoutDetachedSnapshot(state, targetSha) {
+    const fs = window.fileSystemModule;
+    const targetCommit = targetSha ? state.commitBySha[targetSha] : null;
+    const targetSnapshot = targetCommit ? (targetCommit.snapshot || {}) : {};
+
+    const currentTracked = Object.keys(getHeadTree(state));
+    currentTracked.forEach((name) => {
+        if (!(name in targetSnapshot) && fs.exists(name)) {
+            fs.deletePath(name);
+        }
+    });
+    Object.keys(targetSnapshot).forEach((name) => {
+        fs.writeFile(name, targetSnapshot[name]);
+    });
+
+    state.headDetached = true;
+    state.detachedHeadSha = targetSha || null;
+    state.headRef = 'HEAD';
+    state.head = targetSha || null;
+    state.index = {};
+    state.staged = [];
+    refreshTrackedFiles(state);
+    writeHeadRef(state);
 }
 
 function createConflictContent(currentBranch, sourceBranch, ours, theirs) {
@@ -424,7 +645,7 @@ function writeWorkingSnapshot(snapshot) {
 }
 
 function resolveRevision(state, rev) {
-    const head = state.refs[state.currentBranch] || null;
+    const head = getHeadSha(state);
     if (!rev || rev === 'HEAD') return head;
 
     if (rev.startsWith('HEAD~')) {
@@ -545,7 +766,7 @@ function createCommitFromSnapshot(state, opts) {
         author: authorName + ' <' + authorEmail + '>',
         authorName,
         authorEmail,
-        branch: state.currentBranch,
+        branch: state.headDetached ? null : state.currentBranch,
         date: timestamp,
         timestamp,
         files: changedFiles,
@@ -558,11 +779,11 @@ function createCommitFromSnapshot(state, opts) {
 
     state.commits.push(commit);
     state.commitBySha[sha] = commit;
-    state.refs[state.currentBranch] = sha;
+    if (state.headDetached) state.detachedHeadSha = sha;
+    else state.refs[state.currentBranch] = sha;
     refreshTrackedFiles(state);
-
-    const fs = window.fileSystemModule;
-    fs.writeFile('.git/HEAD', 'ref: refs/heads/' + state.currentBranch);
+    writeHeadRef(state);
+    appendReflog(state, 'commit: ' + (opts.message || 'Update'), sha);
 
     return { commit };
 }
@@ -647,8 +868,11 @@ gitCommands.init = function(args) {
         refs: { main: null },
         headRef: 'refs/heads/main',
         head: null,
+        headDetached: false,
+        detachedHeadSha: null,
         commits: [],
         commitBySha: {},
+        reflog: [],
         staged: [],
         index: {},
         trackedFiles: {},
@@ -659,7 +883,27 @@ gitCommands.init = function(args) {
         mergeInProgress: false,
         mergeHead: null,
         mergeBase: null,
-        conflictFiles: []
+        conflictFiles: [],
+        remotes: {
+            origin: {
+                name: 'origin',
+                fetchUrl: 'https://example.com/git-wizard-origin.git',
+                pushUrl: 'https://example.com/git-wizard-origin.git',
+                branches: { main: null }
+            },
+            upstream: {
+                name: 'upstream',
+                fetchUrl: 'https://example.com/git-wizard-upstream.git',
+                pushUrl: 'https://example.com/git-wizard-upstream.git',
+                branches: {}
+            }
+        },
+        remoteRefs: {
+            'refs/remotes/origin/main': null
+        },
+        tracking: {
+            main: { remote: 'origin', merge: 'refs/heads/main' }
+        }
     };
 
     window.gameState.flags = window.gameState.flags || {};
@@ -1005,7 +1249,7 @@ gitCommands.log = function(args) {
     }
 
     const state = ensureGitState();
-    const headSha = state.refs[state.currentBranch] || null;
+    const headSha = getHeadSha(state);
     if (!headSha) {
         return { success: false, message: 'fatal: your current branch does not have any commits yet', xp: 0 };
     }
@@ -1026,7 +1270,9 @@ gitCommands.log = function(args) {
     commits.forEach((commit, idx) => {
         let decorations = '';
         if (idx === 0) {
-            const refs = branchAtHead.map((b) => (b === state.currentBranch ? 'HEAD -> ' + b : b));
+            const refs = state.headDetached
+                ? ['HEAD'].concat(branchAtHead)
+                : branchAtHead.map((b) => (b === state.currentBranch ? 'HEAD -> ' + b : b));
             if (refs.length) decorations = ' (\x1b[36m' + refs.join(', ') + '\x1b[0m)';
         }
 
@@ -1090,7 +1336,7 @@ gitCommands.branch = function(args) {
         }
 
         state.branches.push(newBranch);
-        state.refs[newBranch] = state.refs[state.currentBranch] || null;
+        state.refs[newBranch] = getHeadSha(state);
         window.gameState.branches++;
         window.gameState.flags = window.gameState.flags || {};
         window.gameState.flags.branchCreated = true;
@@ -1135,9 +1381,11 @@ gitCommands.checkout = function(args) {
             return { success: false, message: "fatal: A branch named '" + newBranch + "' already exists.", xp: 0 };
         }
 
+        const before = state.headDetached ? ((state.detachedHeadSha || '').slice(0, 7) || 'HEAD') : state.currentBranch;
         state.branches.push(newBranch);
-        state.refs[newBranch] = state.refs[state.currentBranch] || null;
+        state.refs[newBranch] = getHeadSha(state);
         checkoutBranchSnapshot(state, newBranch);
+        appendReflog(state, 'checkout: moving from ' + before + ' to ' + newBranch);
         window.gameState.branches++;
         window.gameState.flags = window.gameState.flags || {};
         window.gameState.flags.branchCreated = true;
@@ -1150,20 +1398,32 @@ gitCommands.checkout = function(args) {
 
     const branch = args.find((a) => !a.startsWith('-'));
     if (!branch) return { success: true, message: 'usage: git checkout <branch-name>', xp: 0 };
-    if (!state.branches.includes(branch)) {
-        return { success: false, message: "error: pathspec '" + branch + "' did not match any file(s) known to git", xp: 0 };
+    if (state.branches.includes(branch)) {
+        const before = state.headDetached ? ((state.detachedHeadSha || '').slice(0, 7) || 'HEAD') : state.currentBranch;
+        checkoutBranchSnapshot(state, branch);
+        appendReflog(state, 'checkout: moving from ' + before + ' to ' + branch);
+        window.gameState.flags = window.gameState.flags || {};
+        window.gameState.flags.visitedBranches = window.gameState.flags.visitedBranches || {};
+        window.gameState.flags.visitedBranches[branch] = true;
+        window.gameState.flags.explicitBranchSwitches = (window.gameState.flags.explicitBranchSwitches || 0) + 1;
+        window.gameState.flags.ranBranchFlow = true;
+        return { success: true, message: "Switched to branch '" + branch + "'", xp: 20 };
     }
 
-    checkoutBranchSnapshot(state, branch);
-    window.gameState.flags = window.gameState.flags || {};
-    window.gameState.flags.visitedBranches = window.gameState.flags.visitedBranches || {};
-    window.gameState.flags.visitedBranches[branch] = true;
-    window.gameState.flags.explicitBranchSwitches = (window.gameState.flags.explicitBranchSwitches || 0) + 1;
-    window.gameState.flags.ranBranchFlow = true;
-    if (args.some((a) => /^[a-f0-9]{7,40}$/.test(a))) {
-        window.gameState.flags.recoveredCommit = true;
+    const targetSha = resolveRevision(state, branch);
+    if (!targetSha) {
+        return { success: false, message: "error: pathspec '" + branch + "' did not match any file(s) known to git", xp: 0 };
     }
-    return { success: true, message: "Switched to branch '" + branch + "'", xp: 20 };
+    const fromLabel = state.headDetached ? ((state.detachedHeadSha || '').slice(0, 7) || 'HEAD') : state.currentBranch;
+    checkoutDetachedSnapshot(state, targetSha);
+    appendReflog(state, 'checkout: moving from ' + fromLabel + ' to ' + targetSha.slice(0, 7), targetSha);
+    window.gameState.flags = window.gameState.flags || {};
+    window.gameState.flags.recoveredCommit = true;
+    return {
+        success: true,
+        message: 'Note: switching to \'' + targetSha.slice(0, 7) + '\'.\nYou are in \'detached HEAD\' state.',
+        xp: 20
+    };
 };
 
 gitCommands.switch = function(args) {
@@ -1173,6 +1433,7 @@ gitCommands.switch = function(args) {
 
     const state = ensureGitState();
     const createIndex = args.findIndex((a) => a === '-c' || a === '--create');
+    const detachFlag = args.includes('--detach');
 
     if (createIndex !== -1 && args[createIndex + 1]) {
         const newBranch = args[createIndex + 1];
@@ -1180,9 +1441,11 @@ gitCommands.switch = function(args) {
             return { success: false, message: "fatal: A branch named '" + newBranch + "' already exists.", xp: 0 };
         }
 
+        const before = state.headDetached ? ((state.detachedHeadSha || '').slice(0, 7) || 'HEAD') : state.currentBranch;
         state.branches.push(newBranch);
-        state.refs[newBranch] = state.refs[state.currentBranch] || null;
+        state.refs[newBranch] = getHeadSha(state);
         checkoutBranchSnapshot(state, newBranch);
+        appendReflog(state, 'switch: moving from ' + before + ' to ' + newBranch);
         window.gameState.branches++;
         window.gameState.flags = window.gameState.flags || {};
         window.gameState.flags.branchCreated = true;
@@ -1194,12 +1457,24 @@ gitCommands.switch = function(args) {
     }
 
     const branch = args.find((a) => !a.startsWith('-'));
-    if (!branch) return { success: true, message: 'usage: git switch [-c|--create] <branch>', xp: 0 };
+    if (!branch) return { success: true, message: 'usage: git switch [-c|--create] [--detach] <branch|rev>', xp: 0 };
+    if (detachFlag) {
+        const targetSha = resolveRevision(state, branch);
+        if (!targetSha) {
+            return { success: false, message: "fatal: invalid reference: " + branch, xp: 0 };
+        }
+        const fromLabel = state.headDetached ? ((state.detachedHeadSha || '').slice(0, 7) || 'HEAD') : state.currentBranch;
+        checkoutDetachedSnapshot(state, targetSha);
+        appendReflog(state, 'switch: moving from ' + fromLabel + ' to ' + targetSha.slice(0, 7), targetSha);
+        return { success: true, message: 'HEAD is now at ' + targetSha.slice(0, 7), xp: 20 };
+    }
     if (!state.branches.includes(branch)) {
         return { success: false, message: "error: branch '" + branch + "' not found", xp: 0 };
     }
 
+    const before = state.headDetached ? ((state.detachedHeadSha || '').slice(0, 7) || 'HEAD') : state.currentBranch;
     checkoutBranchSnapshot(state, branch);
+    appendReflog(state, 'switch: moving from ' + before + ' to ' + branch);
     window.gameState.flags = window.gameState.flags || {};
     window.gameState.flags.visitedBranches = window.gameState.flags.visitedBranches || {};
     window.gameState.flags.visitedBranches[branch] = true;
@@ -1477,19 +1752,44 @@ gitCommands.tag = function(args) {
         return { success: true, message: 'fatal: not a git repository', xp: 0 };
     }
 
-    if (args.length === 0) {
-        return { success: true, message: 'No tags yet', xp: 0 };
-    }
-
-    const tagName = args[0];
-    localStorage.setItem('gwa_tag', 'true');
-    window.gameState.flags = window.gameState.flags || {};
-    window.gameState.flags.ranTag = true;
-
+    const state = ensureGitState();
     state.tags = state.tags || {};
+
+    const listMode = args.length === 0 || args.includes('--list') || args.includes('-l');
+    if (listMode) {
+        const tags = Object.keys(state.tags).sort();
+        return { success: true, message: tags.length ? tags.join('\n') : 'No tags yet', xp: 0 };
+    }
 
     const annotateIndex = args.findIndex((a) => a === '-a');
     const messageIndex = args.findIndex((a) => a === '-m');
+
+    let tagName = '';
+    for (let i = 0; i < args.length; i++) {
+        const token = args[i];
+        if (token === '-a' || token === '--annotate') {
+            if (args[i + 1]) {
+                tagName = args[i + 1];
+                break;
+            }
+            continue;
+        }
+        if (token === '-m' || token === '--message') {
+            i += 1;
+            continue;
+        }
+        if (!token.startsWith('-')) {
+            tagName = token;
+            break;
+        }
+    }
+
+    if (!tagName) {
+        return { success: false, message: 'usage: git tag [-a] <tagname> [-m <message>]', xp: 0 };
+    }
+    localStorage.setItem('gwa_tag', 'true');
+    window.gameState.flags = window.gameState.flags || {};
+    window.gameState.flags.ranTag = true;
     const target = state.refs[state.currentBranch] || null;
     const now = new Date().toISOString();
 
@@ -1763,8 +2063,9 @@ gitCommands.reflog = function(args) {
     window.gameState.flags.ranReflog = true;
 
     let output = '';
-    state.commits.slice().reverse().forEach((c, i) => {
-        output += 'HEAD@{' + i + '} ' + c.shortSha + ' ' + c.message + '\n';
+    state.reflog.slice().reverse().forEach((entry, i) => {
+        const shortSha = entry.shortSha || '0000000';
+        output += 'HEAD@{' + i + '} ' + shortSha + ' ' + (entry.message || '') + '\n';
     });
 
     return { success: true, message: output || 'No reflog entries', xp: 15 };
@@ -1787,7 +2088,8 @@ gitCommands.reset = function(args) {
         return { success: false, message: "fatal: ambiguous argument '" + targetRef + "': unknown revision", xp: 0 };
     }
 
-    state.refs[state.currentBranch] = targetSha;
+    if (state.headDetached) state.detachedHeadSha = targetSha;
+    else state.refs[state.currentBranch] = targetSha;
     const snapshot = getSnapshotForSha(state, targetSha);
 
     if (mode === 'hard') {
@@ -1798,6 +2100,7 @@ gitCommands.reset = function(args) {
         state.index = {};
         state.staged = [];
         refreshTrackedFiles(state);
+        appendReflog(state, 'reset: moving to ' + targetRef, targetSha);
         return { success: true, message: 'HEAD is now at ' + targetSha.slice(0, 7), xp: 20 };
     }
 
@@ -1807,6 +2110,7 @@ gitCommands.reset = function(args) {
         window.gameState.flags = window.gameState.flags || {};
         window.gameState.flags.ranResetSoft = true;
         if (targetRef !== 'HEAD') window.gameState.flags.recoveredCommit = true;
+        appendReflog(state, 'reset: moving to ' + targetRef, targetSha);
         return { success: true, message: 'HEAD is now at ' + targetSha.slice(0, 7), xp: 15 };
     }
 
@@ -1816,6 +2120,7 @@ gitCommands.reset = function(args) {
     window.gameState.flags = window.gameState.flags || {};
     window.gameState.flags.ranResetMixed = true;
     if (targetRef !== 'HEAD') window.gameState.flags.recoveredCommit = true;
+    appendReflog(state, 'reset: moving to ' + targetRef, targetSha);
     return { success: true, message: 'Unstaged changes after reset', xp: 10 };
 };
 
@@ -1845,6 +2150,9 @@ gitCommands.show = function(args) {
 };
 
 gitCommands.remote = async function(args) {
+    window.gameState.flags = window.gameState.flags || {};
+    if (args[0] === 'add' && args[1] === 'origin') window.gameState.flags.remoteOriginConfigured = true;
+    if (args[0] === 'add' && args[1] === 'upstream') window.gameState.flags.remoteUpstreamConfigured = true;
     if (window.gameEngine && window.gameEngine.isLiveGitHubConnected && window.gameEngine.isLiveGitHubConnected()) {
         const live = window.gameEngine.getLiveGitHubState ? window.gameEngine.getLiveGitHubState() : {};
         const repo = live.repo || {};
@@ -1858,16 +2166,43 @@ gitCommands.remote = async function(args) {
         return { success: true, message: '(note: Live GitHub Mode is connected)', xp: 0 };
     }
 
-    if (args.length === 0 || args.includes('-v')) {
-        return { success: true, message: 'origin  (fetch)\norigin  (push)\n(note: remotes are simulated in Git Wizard Academy)', xp: 5 };
+    const state = ensureGitState();
+    const verbose = args.includes('-v');
+    const sub = args.find((a) => !a.startsWith('-')) || '';
+
+    if (!sub) {
+        const out = renderRemoteList(state, verbose);
+        return { success: true, message: out + (out ? '\n' : '') + '(note: remotes are simulated in Git Wizard Academy)', xp: 5 };
     }
-    if (args.includes('add')) {
-        return { success: true, message: '(note: remotes are simulated in Git Wizard Academy)', xp: 10 };
+
+    if (sub === 'add') {
+        const plain = args.filter((a) => !a.startsWith('-'));
+        const name = plain[1];
+        const url = plain[2];
+        if (!name || !url) return { success: false, message: 'usage: git remote add <name> <url>', xp: 0 };
+        if (state.remotes[name]) return { success: false, message: "error: remote " + name + " already exists.", xp: 0 };
+        state.remotes[name] = { name, fetchUrl: url, pushUrl: url, branches: {} };
+        return { success: true, message: '', xp: 10 };
     }
-    return { success: true, message: '', xp: 0 };
+
+    if (sub === 'set-url') {
+        const plain = args.filter((a) => !a.startsWith('-'));
+        const name = plain[1];
+        const url = plain[2];
+        if (!name || !url) return { success: false, message: 'usage: git remote set-url <name> <url>', xp: 0 };
+        if (!state.remotes[name]) return { success: false, message: "error: No such remote '" + name + "'", xp: 0 };
+        state.remotes[name].fetchUrl = url;
+        state.remotes[name].pushUrl = url;
+        return { success: true, message: '', xp: 10 };
+    }
+
+    const out = renderRemoteList(state, verbose);
+    return { success: true, message: out, xp: 1 };
 };
 
 gitCommands.fetch = async function(args) {
+    window.gameState.flags = window.gameState.flags || {};
+    window.gameState.flags.ranFetch = true;
     if (window.gameEngine && window.gameEngine.isLiveGitHubConnected && window.gameEngine.isLiveGitHubConnected()) {
         const result = await window.gameEngine.fetchLiveGitHubRepo();
         return {
@@ -1876,10 +2211,27 @@ gitCommands.fetch = async function(args) {
             xp: 15
         };
     }
-    return { success: true, message: 'From /\n   a8949f9..3b2a0c5  main     -> origin/main\n(note: fetch is simulated in Git Wizard Academy)', xp: 15 };
+    const state = ensureGitState();
+    const plain = args.filter((a) => !a.startsWith('-'));
+    const remoteName = plain[0] || 'origin';
+    const onlyBranch = plain[1] || '';
+    const remote = state.remotes[remoteName];
+    if (!remote) return { success: false, message: "fatal: '" + remoteName + "' does not appear to be a git repository", xp: 0 };
+
+    const fetched = applyFetchForRemote(state, remoteName, onlyBranch);
+    const lines = ['From ' + (remote.fetchUrl || '/repo.git')];
+    fetched.updated.forEach((entry) => {
+        const short = entry.sha ? entry.sha.slice(0, 7) : '0000000';
+        lines.push(' * [new ref]         ' + short + ' -> ' + remoteName + '/' + entry.branch);
+    });
+    if (!fetched.updated.length) lines.push('Already up to date.');
+    lines.push('(note: fetch is simulated in Git Wizard Academy)');
+    return { success: true, message: lines.join('\n'), xp: 15 };
 };
 
 gitCommands.pull = async function(args) {
+    window.gameState.flags = window.gameState.flags || {};
+    window.gameState.flags.ranPull = true;
     if (window.gameEngine && window.gameEngine.isLiveGitHubConnected && window.gameEngine.isLiveGitHubConnected()) {
         const result = await window.gameEngine.pullLiveGitHubRepo();
         return {
@@ -1888,10 +2240,59 @@ gitCommands.pull = async function(args) {
             xp: 25
         };
     }
-    return { success: true, message: 'Updating a8949f9..3b2a0c5\nFast-forward\n file.txt | 2 +-\n 1 file changed, 1 insertion(+), 1 deletion(-)\n(note: pull is simulated in Git Wizard Academy)', xp: 25 };
+    const state = ensureGitState();
+    const plain = args.filter((a) => !a.startsWith('-'));
+    const tracking = getTrackingBranch(state, state.currentBranch) || { remote: 'origin', merge: 'refs/heads/' + state.currentBranch };
+    const remoteName = plain[0] || tracking.remote || 'origin';
+    const requestedBranch = plain[1] || tracking.merge.replace('refs/heads/', '');
+    const rebaseRequested = args.includes('--rebase') || readConfigValue(state, 'pull.rebase') === 'true';
+    const remote = state.remotes[remoteName];
+    if (!remote) return { success: false, message: "fatal: '" + remoteName + "' does not appear to be a git repository", xp: 0 };
+
+    applyFetchForRemote(state, remoteName, requestedBranch);
+    const remoteSha = state.remoteRefs['refs/remotes/' + remoteName + '/' + requestedBranch] || null;
+    const localSha = state.refs[state.currentBranch] || null;
+    if (!remoteSha) return { success: true, message: 'Already up to date.\n(note: pull is simulated in Git Wizard Academy)', xp: 10 };
+    if (localSha === remoteSha) return { success: true, message: 'Already up to date.\n(note: pull is simulated in Git Wizard Academy)', xp: 10 };
+
+    const localAnc = getAncestors(state, localSha);
+    const remoteAnc = getAncestors(state, remoteSha);
+
+    if (!localSha || localAnc.has(remoteSha)) {
+        return { success: true, message: 'Already up to date.\n(note: pull is simulated in Git Wizard Academy)', xp: 10 };
+    }
+
+    if (remoteAnc.has(localSha)) {
+        state.refs[state.currentBranch] = remoteSha;
+        refreshTrackedFiles(state);
+        writeWorkingSnapshot(getSnapshotForSha(state, remoteSha));
+        return {
+            success: true,
+            message: 'Updating ' + localSha.slice(0, 7) + '..' + remoteSha.slice(0, 7) + '\nFast-forward\n(note: pull is simulated in Git Wizard Academy)',
+            xp: 25
+        };
+    }
+
+    if (rebaseRequested) {
+        const result = gitCommands.rebase([remoteSha]);
+        return {
+            success: result.success,
+            message: (result.message || 'Rebased onto ' + remoteName + '/' + requestedBranch) + '\n(note: pull --rebase is simulated in Git Wizard Academy)',
+            xp: result.success ? 25 : 0
+        };
+    }
+
+    const mergeResult = gitCommands.merge([remoteSha]);
+    return {
+        success: mergeResult.success,
+        message: (mergeResult.message || '') + '\n(note: pull merge is simulated in Git Wizard Academy)',
+        xp: mergeResult.success ? 25 : 0
+    };
 };
 
 gitCommands.push = async function(args) {
+    window.gameState.flags = window.gameState.flags || {};
+    window.gameState.flags.ranPush = true;
     if (window.gameEngine && window.gameEngine.isLiveGitHubConnected && window.gameEngine.isLiveGitHubConnected()) {
         const result = await window.gameEngine.pushLiveGitHubRepo();
         return {
@@ -1900,8 +2301,71 @@ gitCommands.push = async function(args) {
             xp: 25
         };
     }
-    return { success: true, message: 'To /repo.git\n   a8949f9..3b2a0c5  main -> main\n(note: push is simulated in Git Wizard Academy)', xp: 25 };
+    const state = ensureGitState();
+    const plain = args.filter((a) => !a.startsWith('-'));
+    const setUpstream = args.includes('-u') || args.includes('--set-upstream');
+    const remoteName = plain[0] || 'origin';
+    const localBranch = plain[1] || state.currentBranch;
+    const remoteBranch = plain[2] || localBranch;
+
+    if (!(localBranch in state.refs)) {
+        return { success: false, message: "error: src refspec " + localBranch + " does not match any", xp: 0 };
+    }
+    const remote = state.remotes[remoteName];
+    if (!remote) return { success: false, message: "fatal: '" + remoteName + "' does not appear to be a git repository", xp: 0 };
+    const localSha = state.refs[localBranch] || null;
+    if (!localSha) return { success: false, message: 'error: failed to push some refs (no commits yet)', xp: 0 };
+    const remoteSha = remote.branches[remoteBranch] || null;
+
+    if (remoteSha && remoteSha !== localSha) {
+        const localAnc = getAncestors(state, localSha);
+        if (!localAnc.has(remoteSha)) {
+            return {
+                success: false,
+                message: '! [rejected]        ' + localBranch + ' -> ' + remoteBranch + ' (non-fast-forward)\nerror: failed to push some refs to ' + (remote.pushUrl || '/repo.git'),
+                xp: 0
+            };
+        }
+    }
+
+    remote.branches[remoteBranch] = localSha;
+    state.remoteRefs['refs/remotes/' + remoteName + '/' + remoteBranch] = localSha;
+    if (setUpstream || !state.tracking[localBranch]) {
+        state.tracking[localBranch] = { remote: remoteName, merge: 'refs/heads/' + remoteBranch };
+    }
+    const delta = countAheadBehind(state, localSha, remoteSha);
+    return {
+        success: true,
+        message: 'To ' + (remote.pushUrl || '/repo.git') + '\n   ' + (remoteSha ? remoteSha.slice(0, 7) : '0000000') + '..' + localSha.slice(0, 7) + '  ' + localBranch + ' -> ' + remoteBranch + '\n(branch status: ahead ' + delta.ahead + ', behind ' + delta.behind + ')\n(note: push is simulated in Git Wizard Academy)',
+        xp: 25
+    };
 };
+
+Object.keys(gitCommands).forEach((name) => {
+    if (typeof gitCommands[name] !== 'function') return;
+    if (name === '_hash') return;
+    if (gitCommands[name].__eventWrapped) return;
+
+    const original = gitCommands[name];
+    const wrapped = function(args) {
+        const before = captureGitSnapshot();
+        const finalArgs = Array.isArray(args) ? args : [];
+        const result = original.call(this, finalArgs);
+
+        if (result && typeof result.then === 'function') {
+            return result.then((resolved) => {
+                appendGitEvent(name, finalArgs, before, resolved || {});
+                return resolved;
+            });
+        }
+
+        appendGitEvent(name, finalArgs, before, result || {});
+        return result;
+    };
+
+    wrapped.__eventWrapped = true;
+    gitCommands[name] = wrapped;
+});
 
 // Export
 window.gitCommands = gitCommands;
