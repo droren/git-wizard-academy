@@ -22,5 +22,10 @@ node tests/tier-certificates.test.js
 node tests/export-repo.test.js
 node tests/export-bridge.test.js
 node tests/live-github.test.js
+node tests/git-detached-head.test.js
+node tests/git-merge-conflict-lifecycle.test.js
+node tests/git-hooks-rejection.test.js
+node tests/git-rebase-rewrite.test.js
+node tests/git-remote-transitions.test.js
 
 echo "all checks passed"
