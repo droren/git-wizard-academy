@@ -1,8 +1,5 @@
 (function () {
     const PROCESSION_SETTLE_MS = 700;
-    const CRAWL_MS = 36000;
-    const CHEER_MS = 2200;
-    const FADE_MS = 900;
 
     const CEREMONY_CAST = [
         'adventurer', 'female', 'alienBlue', 'alienGreen', 'alienPink',
@@ -25,25 +22,10 @@
         mouse: makeCritter('mouse', 26, 18, ['mouse', 'mouse_walk'])
     };
 
-    const PROP_SPRITES = {
-        torch: { src: 'assets/sprites/intro/props/torch.png', w: 22, h: 34 },
-        coinGold: { src: 'assets/sprites/intro/props/coinGold.png', w: 18, h: 18 },
-        gemBlue: { src: 'assets/sprites/intro/props/gemBlue.png', w: 18, h: 18 },
-        keyBlue: { src: 'assets/sprites/intro/props/keyBlue.png', w: 20, h: 18 },
-        bomb: { src: 'assets/sprites/intro/props/bomb.png', w: 20, h: 20 },
-        fireball: { src: 'assets/sprites/intro/props/fireball.png', w: 20, h: 20 },
-        swordSilver: { src: 'assets/sprites/intro/props/swordSilver.png', w: 12, h: 34 },
-        shieldSilver: { src: 'assets/sprites/intro/props/shieldSilver.png', w: 24, h: 28 },
-        extraCrate: { src: 'assets/sprites/intro/props/extra_crate.png', w: 28, h: 28 },
-        pen: { src: 'assets/sprites/intro/props/drawing_pen.png', w: 20, h: 20 },
-        pencil: { src: 'assets/sprites/intro/props/drawing_pencil.png', w: 20, h: 20 }
-    };
-
     const state = {
         overlay: null,
         stage: null,
         actors: [],
-        props: [],
         phase: 'idle',
         active: false,
         paused: false,
@@ -52,8 +34,6 @@
         phaseElapsed: 0,
         phaseStartedAt: 0,
         rafId: 0,
-        lastScrollCueAt: 0,
-        lastCheerCueAt: 0,
         sideTargets: [],
         crawlRect: null,
         stageW: 0,
@@ -61,7 +41,7 @@
         readyPromise: null,
         visibilityBound: false,
         processionReadyFired: false,
-        finaleFired: false
+        walkingSoundAt: 0
     };
 
     function makeSprite(group, name, w, h) {
@@ -166,8 +146,7 @@
 
     function createActor(spec, index) {
         const sprite = SPRITES[spec.type];
-        const el = document.createElement('button');
-        el.type = 'button';
+        const el = document.createElement('div');
         el.className = 'intro-sprite-actor';
         el.setAttribute('aria-label', spec.type);
         const startX = spec.side === 'left' ? -60 - index * 18 : state.stageW + 30 + index * 18;
@@ -185,60 +164,16 @@
             state: 'walk',
             frameIndex: 0,
             frameTimer: 0,
-            bobPhase: rand(0, Math.PI * 2),
-            jitterAt: rand(900, 3400),
-            tripped: false,
-            sleepy: Math.random() < 0.2,
-            bored: Math.random() < 0.16,
-            lookAtUntil: 0,
-            shuffleUntil: 0,
-            nudgeX: 0,
-            role: spec.side,
-            phaseHint: 'march',
-            nextStepAt: rand(80, 220)
+            bobPhase: rand(0, Math.PI * 2)
         };
-        el.addEventListener('click', function () {
-            actor.state = 'jump';
-            actor.phaseHint = 'poked';
-            actor.bounceUntil = state.elapsed + 450;
-            playSound('swish');
-        });
         state.stage.appendChild(el);
         state.actors.push(actor);
         return actor;
     }
 
-    function spawnProp(name, x, y, className) {
-        const sprite = PROP_SPRITES[name];
-        if (!sprite) return null;
-        const el = document.createElement('div');
-        el.className = 'intro-prop ' + (className || '');
-        el.style.width = sprite.w + 'px';
-        el.style.height = sprite.h + 'px';
-        el.style.backgroundImage = 'url("' + sprite.src + '")';
-        el.style.transform = 'translate(' + x + 'px,' + y + 'px)';
-        state.stage.appendChild(el);
-        const prop = { name: name, element: el, x: x, y: y, w: sprite.w, h: sprite.h };
-        state.props.push(prop);
-        return prop;
-    }
-
-    function populateSceneProps() {
-        clearNodeList(state.props);
-        const crawl = state.crawlRect;
-        if (!crawl) return;
-        spawnProp('torch', crawl.left - 36, crawl.bottom - 54, 'intro-prop-static');
-        spawnProp('torch', crawl.right + 18, crawl.bottom - 54, 'intro-prop-static');
-        spawnProp('shieldSilver', crawl.left - 18, crawl.top + 36, 'intro-prop-static');
-        spawnProp('swordSilver', crawl.right + 18, crawl.top + 34, 'intro-prop-static');
-        spawnProp('extraCrate', crawl.left + 26, crawl.bottom + 6, 'intro-prop-static');
-        spawnProp('pen', crawl.right - 38, crawl.bottom + 14, 'intro-prop-static');
-    }
-
     function setupCeremony() {
         clearNodeList(state.actors);
         buildCeremonyLayout();
-        populateSceneProps();
         state.sideTargets.forEach(function (spec, index) {
             createActor(spec, index);
         });
@@ -275,226 +210,45 @@
             actor.direction = dir;
             actor.x += dir * Math.min(Math.abs(actor.targetX - actor.x), step);
             actor.state = 'walk';
-            actor.nextStepAt -= dt;
-            if (actor.nextStepAt <= 0) {
-                actor.nextStepAt = rand(220, 420);
-                playSound('stepWood');
-            }
             return;
         }
 
-        actor.state = actor.sleepy ? 'idle' : 'walk';
-        if (!actor.tripped && state.elapsed > actor.jitterAt && Math.random() < 0.03) {
-            actor.tripped = true;
-            actor.state = 'hurt';
-            actor.y += 4;
-            playSound('push');
-        }
-        if (actor.tripped && Math.random() < 0.08) {
-            actor.tripped = false;
-            actor.y = actor.targetY;
-        }
-        actor.bobPhase += dt * 0.002;
-        actor.y = actor.targetY + (actor.sleepy ? Math.sin(actor.bobPhase) * 2.2 : 0);
-    }
-
-    function makeProjectile(name, fromActor, towardActor) {
-        const sprite = PROP_SPRITES[name];
-        if (!sprite) return;
-        const el = document.createElement('div');
-        el.className = 'intro-prop intro-prop-flying';
-        el.style.width = sprite.w + 'px';
-        el.style.height = sprite.h + 'px';
-        el.style.backgroundImage = 'url("' + sprite.src + '")';
-        state.stage.appendChild(el);
-        const prop = {
-            name: name,
-            element: el,
-            x: fromActor.x + fromActor.width * 0.4,
-            y: fromActor.y + 12,
-            w: sprite.w,
-            h: sprite.h,
-            vx: towardActor ? (towardActor.x - fromActor.x) / 0.55 : (fromActor.direction > 0 ? 110 : -110),
-            vy: towardActor ? -18 : -42,
-            flying: true,
-            fadeAt: state.elapsed + 850
-        };
-        state.props.push(prop);
-        playSound(name === 'coinGold' ? 'pickup' : 'throw');
-    }
-
-    function processionAntics() {
-        if (state.elapsed < 1000 || Math.random() > 0.045) return;
-        const actors = state.actors;
-        if (!actors.length) return;
-        const actor = actors[Math.floor(Math.random() * actors.length)];
-        if (!actorArrived(actor)) return;
-
-        if (actor.type === 'mouse' || actor.type === 'spider') {
-            actor.targetY += actor.type === 'mouse' ? -6 : 4;
-            actor.state = 'walk';
-            return;
-        }
-
-        if (actor.type.indexOf('alien') === 0 && Math.random() < 0.35) {
-            actor.state = 'jump';
-            actor.bounceUntil = state.elapsed + 420;
-            playSound('swish');
-            return;
-        }
-
-        if ((actor.type === 'female' || actor.type === 'adventurer') && Math.random() < 0.3) {
-            makeProjectile('coinGold', actor, pick(state.actors.filter(function (candidate) { return candidate !== actor; })));
-            return;
-        }
-
-        if (actor.type === 'zombie' && Math.random() < 0.25) {
-            actor.sleepy = true;
-            return;
-        }
-
-        if (actor.type === 'frog' || actor.type === 'slime') {
-            actor.state = 'jump';
-            actor.bounceUntil = state.elapsed + 360;
-            playSound('jump');
-            return;
-        }
-
-        actor.state = 'hurt';
-        playSound('push');
-    }
-
-    function scrollBehavior(actor, dt) {
-        actor.bobPhase += dt * 0.0022;
-        if (actor.shuffleUntil && state.elapsed < actor.shuffleUntil) {
-            actor.nudgeX = Math.sin((state.elapsed - (actor.shuffleUntil - 420)) * 0.03) * 5;
-            actor.state = 'walk';
-        } else {
-            actor.nudgeX *= 0.82;
-        }
-        actor.x = actor.targetX + actor.nudgeX;
-        actor.y = actor.targetY + (actor.bored ? Math.sin(actor.bobPhase) * 1.5 : 0);
-        if (actor.bounceUntil && state.elapsed < actor.bounceUntil) {
-            actor.state = 'jump';
-            actor.y -= Math.abs(Math.sin((state.elapsed - (actor.bounceUntil - 420)) * 0.02)) * 12;
-        } else if (actor.sleepy) {
-            actor.state = 'idle';
-            actor.y += Math.sin(actor.bobPhase * 0.9) * 2.5;
-        } else if (actor.lookAtUntil && state.elapsed < actor.lookAtUntil) {
-            actor.state = 'walk';
-            actor.direction = actor.role === 'left' ? 1 : -1;
-        } else {
-            actor.state = 'idle';
-        }
-    }
-
-    function scrollAntics() {
-        if (state.elapsed - state.lastScrollCueAt < 1450) return;
-        state.lastScrollCueAt = state.elapsed;
-        const actor = pick(state.actors);
-        if (!actor) return;
-        if (actor.type === 'mouse' || actor.type === 'spider') {
-            actor.targetY += actor.type === 'mouse' ? 2 : -2;
-            playSound('stepWood');
-        } else if (actor.type.indexOf('alien') === 0) {
-            actor.state = 'hurt';
-            actor.shuffleUntil = state.elapsed + 420;
-            playSound('swish');
-        } else if (actor.type === 'zombie') {
-            actor.sleepy = !actor.sleepy;
-        } else if (actor.type === 'bee' || actor.type === 'fly') {
-            actor.bounceUntil = state.elapsed + 300;
-            playSound('jump');
-        } else if (actor.type === 'female' || actor.type === 'adventurer') {
-            actor.lookAtUntil = state.elapsed + 640;
-            actor.direction *= -1;
-            playSound('write');
-        } else if (actor.type === 'snail' || actor.type === 'slime') {
-            actor.shuffleUntil = state.elapsed + 520;
-            playSound('push');
-        }
-    }
-
-    function cheerBehavior(actor) {
-        actor.state = 'jump';
-        actor.x = actor.targetX;
-        actor.y = actor.targetY - Math.abs(Math.sin((state.elapsed - (PRELUDE_MS + CRAWL_MS)) * 0.026 + actor.targetX * 0.01)) * 18;
-    }
-
-    function cheerCue() {
-        if (state.elapsed - state.lastCheerCueAt < 520) return;
-        state.lastCheerCueAt = state.elapsed;
-        playSound(Math.random() < 0.5 ? 'success' : 'pickup');
-    }
-
-    function updateFlyingProps(dt) {
-        for (let i = state.props.length - 1; i >= 0; i -= 1) {
-            const prop = state.props[i];
-            if (!prop.flying) continue;
-            prop.x += prop.vx * dt * 0.001;
-            prop.y += prop.vy * dt * 0.001;
-            prop.vy += 220 * dt * 0.001;
-            if (state.elapsed > prop.fadeAt) {
-                if (prop.element && prop.element.parentNode) prop.element.parentNode.removeChild(prop.element);
-                state.props.splice(i, 1);
-                continue;
-            }
-            prop.element.style.transform = 'translate(' + prop.x.toFixed(1) + 'px,' + prop.y.toFixed(1) + 'px) rotate(' + ((prop.fadeAt - state.elapsed) * 0.18) + 'deg)';
-        }
+        actor.state = 'idle';
+        actor.y = actor.targetY;
     }
 
     function updateActor(actor, dt) {
         actor.frameTimer += dt;
         if (actor.frameTimer > (prefersReducedMotion() ? 220 : 140)) {
             actor.frameTimer = 0;
-            actor.frameIndex = (actor.frameIndex + 1) % 4;
+            actor.frameIndex = (actor.frameIndex + 1) % 2;
         }
 
         if (state.phase === 'procession') processionBehavior(actor, dt);
-        else if (state.phase === 'scroll') scrollBehavior(actor, dt);
-        else if (state.phase === 'cheer') cheerBehavior(actor);
+        else {
+            actor.state = 'idle';
+            actor.x = actor.targetX;
+            actor.y = actor.targetY;
+        }
 
         const frame = pickFrame(actor);
         actor.element.style.width = actor.width + 'px';
         actor.element.style.height = actor.height + 'px';
         actor.element.style.backgroundImage = 'url("' + frame + '")';
         actor.element.style.transform = 'translate(' + actor.x.toFixed(1) + 'px,' + actor.y.toFixed(1) + 'px) scaleX(' + actor.direction + ')';
-        if (state.phase === 'fade') {
-            actor.element.style.opacity = String(Math.max(0, 1 - ((state.elapsed - (TOTAL_MS - FADE_MS)) / FADE_MS)));
-        } else {
-            actor.element.style.opacity = '1';
-        }
+        actor.element.style.opacity = '1';
     }
 
     function updatePhase() {
         state.phaseElapsed = state.elapsed - state.phaseStartedAt;
         if (state.phase === 'procession') {
             if (allArrived() && state.phaseElapsed >= PROCESSION_SETTLE_MS) {
-                setPhase('scroll');
+                setPhase('idle');
                 if (!state.processionReadyFired) {
                     state.processionReadyFired = true;
                     dispatchIntroEvent('gwa:intro-procession-ready');
                 }
             }
-            return;
-        }
-
-        if (state.phase === 'scroll' && state.phaseElapsed >= CRAWL_MS) {
-            setPhase('cheer');
-            return;
-        }
-
-        if (state.phase === 'cheer' && state.phaseElapsed >= CHEER_MS) {
-            setPhase('fade');
-            if (!state.finaleFired) {
-                state.finaleFired = true;
-                dispatchIntroEvent('gwa:intro-finale');
-            }
-            return;
-        }
-
-        if (state.phase === 'fade' && state.phaseElapsed >= FADE_MS) {
-            dispatchIntroEvent('gwa:intro-complete');
         }
     }
 
@@ -511,28 +265,29 @@
         state.elapsed += dt;
         updatePhase();
 
-        if (state.phase === 'procession') processionAntics();
-        if (state.phase === 'scroll') scrollAntics();
-        if (state.phase === 'cheer') cheerCue();
-
         state.actors.forEach(function (actor) {
             updateActor(actor, dt);
         });
-        updateFlyingProps(dt);
+        if (state.phase === 'procession' && !prefersReducedMotion() && !allArrived()) {
+            if (!state.walkingSoundAt || (state.elapsed - state.walkingSoundAt) >= 240) {
+                state.walkingSoundAt = state.elapsed;
+                playSound('stepWood');
+            }
+        }
         state.rafId = requestAnimationFrame(tick);
     }
 
     function stop() {
         state.active = false;
         state.paused = false;
+        state.walkingSoundAt = 0;
         if (state.rafId) cancelAnimationFrame(state.rafId);
         state.rafId = 0;
         clearNodeList(state.actors);
-        clearNodeList(state.props);
     }
 
     function musicCue() {
-        return 'retro';
+        return null;
     }
 
     function allSpriteUrls() {
@@ -544,10 +299,6 @@
                     if (urls.indexOf(url) === -1) urls.push(url);
                 });
             });
-        });
-        Object.keys(PROP_SPRITES).forEach(function (key) {
-            const url = PROP_SPRITES[key].src;
-            if (urls.indexOf(url) === -1) urls.push(url);
         });
         return urls;
     }
@@ -592,11 +343,9 @@
                 state.elapsed = 0;
                 state.phaseElapsed = 0;
                 state.phaseStartedAt = 0;
-                state.lastScrollCueAt = 0;
-                state.lastCheerCueAt = 0;
                 state.phase = 'procession';
                 state.processionReadyFired = false;
-                state.finaleFired = false;
+                state.walkingSoundAt = 0;
                 setupCeremony();
                 state.rafId = requestAnimationFrame(tick);
             });

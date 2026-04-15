@@ -5,6 +5,7 @@
  */
 
 const ui = {
+    introCrawlDurationMs: 22000,
     // Command history
     commandHistory: [],
     historyIndex: -1,
@@ -637,12 +638,18 @@ const ui = {
         const title = document.getElementById('introCrawlTitle');
         const body = document.getElementById('introCrawlBody');
         const prologue = window.storyArc && window.storyArc.prologue ? window.storyArc.prologue : null;
-        if (!prologue) return;
+        const crawlLines = prologue && prologue.crawlLines && prologue.crawlLines.length
+            ? prologue.crawlLines
+            : [
+                'A fracture has spread across the academy timelines.',
+                'Commits drift out of order, branches split without warning, and apprentices are trapped inside broken histories.',
+                'Only a new wizard can restore the repository and bring the command altar back under control.'
+            ];
 
-        if (heading) heading.textContent = prologue.crawlHeading || 'Episode 0';
-        if (title) title.textContent = prologue.title || 'Chronicle';
+        if (heading) heading.textContent = prologue && prologue.crawlHeading ? prologue.crawlHeading : 'Episode 0';
+        if (title) title.textContent = prologue && prologue.title ? prologue.title : 'Chronicle of Broken Time';
         if (body) {
-            body.innerHTML = (prologue.crawlLines || []).map(function(line) {
+            body.innerHTML = crawlLines.map(function(line) {
                 return '<p>' + ui.escapeHtml(line) + '</p>';
             }).join('');
         }
@@ -731,6 +738,10 @@ const ui = {
 
         if (guideOverlay) guideOverlay.classList.remove('show');
         if (this.guideTimer) clearTimeout(this.guideTimer);
+        if (this.introCloseTimer) {
+            clearTimeout(this.introCloseTimer);
+            this.introCloseTimer = null;
+        }
         this.populateIntro();
         this.introVisible = true;
         this.introReadyToStart = false;
@@ -747,7 +758,6 @@ const ui = {
             window.IntroSpriteShowcase.start();
         }
         this.playIntroMusic();
-        if (this.introCloseTimer) clearTimeout(this.introCloseTimer);
     },
 
     replayIntro: function() {
@@ -765,6 +775,8 @@ const ui = {
         crawl.classList.remove('animating');
         overlay.offsetHeight;
         crawl.classList.add('animating');
+        if (this.introCloseTimer) clearTimeout(this.introCloseTimer);
+        this.introCloseTimer = setTimeout(this.handleIntroFinale.bind(this), this.introCrawlDurationMs);
     },
 
     handleIntroFinale: function() {
@@ -784,7 +796,7 @@ const ui = {
         if (finale) {
             setTimeout(function() {
                 if (ui.introVisible) finale.classList.add('show');
-            }, 320);
+            }, 420);
         }
     },
 
@@ -837,8 +849,8 @@ const ui = {
         if (!window.Assets || !window.Assets.playMusic) return;
         const cue = window.IntroSpriteShowcase && window.IntroSpriteShowcase.getMusicCue
             ? window.IntroSpriteShowcase.getMusicCue()
-            : 'a_night_full_of_stars';
-        window.Assets.playMusic(cue, { force: true, volume: 0.2 });
+            : null;
+        window.Assets.playMusic(cue || undefined, { force: true, volume: 0.22 });
         this.attachIntroMusicRetry();
     },
 
@@ -849,8 +861,8 @@ const ui = {
             if (!self.introVisible || !window.Assets || !window.Assets.playMusic) return;
             const cue = window.IntroSpriteShowcase && window.IntroSpriteShowcase.getMusicCue
                 ? window.IntroSpriteShowcase.getMusicCue()
-                : 'a_night_full_of_stars';
-            window.Assets.playMusic(cue, { force: true, volume: 0.2 });
+                : null;
+            window.Assets.playMusic(cue || undefined, { force: true, volume: 0.22 });
             self.detachIntroMusicRetry();
         };
         document.addEventListener('pointerdown', this.introMusicRetryBound, true);

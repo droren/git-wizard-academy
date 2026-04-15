@@ -266,6 +266,8 @@ body.glitch {
     width: min(920px, 92vw);
     height: min(54vh, 520px);
     overflow: hidden;
+    z-index: 3;
+    perspective: 760px;
     mask-image: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.95) 20%, rgba(0,0,0,0.95) 72%, transparent 100%);
     -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.95) 20%, rgba(0,0,0,0.95) 72%, transparent 100%);
 }
@@ -277,11 +279,11 @@ body.glitch {
     justify-content: center;
     transform-style: preserve-3d;
     opacity: 0;
-    transition: opacity 0.35s ease;
+    transition: opacity 0.45s ease;
 }
 
 .intro-crawl.animating .intro-crawl-inner {
-    animation: crawlRise 36s linear forwards;
+    animation: crawlRise 24s linear forwards;
 }
 
 .intro-crawl.animating {
@@ -295,7 +297,8 @@ body.glitch {
     font-size: clamp(1rem, 1.65vw, 1.48rem);
     line-height: 1.6;
     transform-origin: 50% 100%;
-    transform: rotateX(24deg) translateY(72%);
+    transform: rotateX(24deg) translateY(54%);
+    text-shadow: 0 0 18px rgba(0, 0, 0, 0.75);
 }
 
 .intro-kicker {
@@ -371,80 +374,34 @@ body.glitch {
     overflow: hidden;
     pointer-events: none;
     background:
-        linear-gradient(180deg, rgba(27, 55, 103, 0.14), rgba(5, 7, 14, 0.72)),
-        radial-gradient(circle at 20% 10%, rgba(255, 229, 143, 0.18), transparent 28%);
+        radial-gradient(circle at 50% 100%, rgba(98, 153, 244, 0.18), transparent 44%),
+        linear-gradient(180deg, rgba(18, 42, 78, 0.12), rgba(5, 7, 14, 0.82));
 }
 
 .intro-overlay.finale-mode {
     background:
-        radial-gradient(circle at top, rgba(88, 166, 255, 0.03), transparent 22%),
+        radial-gradient(circle at top, rgba(88, 166, 255, 0.02), transparent 18%),
         linear-gradient(180deg, #02060f 0%, #03050a 50%, #000000 100%);
 }
 
+.intro-stars,
+.intro-vignette,
+.intro-header,
+.intro-logo-block,
+.intro-crawl-frame,
+.intro-controls,
+.intro-sprite-stage {
+    transition: opacity 0.5s ease;
+}
+
+.intro-overlay.finale-mode .intro-stars,
+.intro-overlay.finale-mode .intro-vignette,
 .intro-overlay.finale-mode .intro-header,
 .intro-overlay.finale-mode .intro-logo-block,
 .intro-overlay.finale-mode .intro-crawl-frame,
 .intro-overlay.finale-mode .intro-controls,
 .intro-overlay.finale-mode .intro-sprite-stage {
     opacity: 0;
-    transition: opacity 0.45s ease;
-}
-
-.intro-stage-layer {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-}
-
-.intro-stage-layer-back {
-    background:
-        radial-gradient(circle at 12% 20%, rgba(255,255,255,0.2), transparent 2px),
-        radial-gradient(circle at 44% 12%, rgba(111, 214, 255, 0.26), transparent 2px),
-        radial-gradient(circle at 72% 28%, rgba(255,255,255,0.18), transparent 2px),
-        linear-gradient(180deg, rgba(70, 127, 207, 0.16), transparent 40%);
-}
-
-.intro-stage-layer-mid::before,
-.intro-stage-layer-mid::after,
-.intro-stage-layer-front::before,
-.intro-stage-layer-front::after {
-    content: "";
-    position: absolute;
-    bottom: 0;
-    border-radius: 24px 24px 0 0;
-    opacity: 0.8;
-}
-
-.intro-stage-layer-mid::before {
-    left: 4%;
-    width: 18%;
-    height: 28%;
-    background: linear-gradient(180deg, rgba(49, 84, 131, 0.88), rgba(17, 25, 41, 0.92));
-}
-
-.intro-stage-layer-mid::after {
-    right: 7%;
-    width: 24%;
-    height: 34%;
-    background: linear-gradient(180deg, rgba(44, 77, 120, 0.84), rgba(17, 25, 41, 0.95));
-}
-
-.intro-stage-layer-front::before {
-    left: 0;
-    width: 100%;
-    height: 24%;
-    border-radius: 0;
-    background:
-        linear-gradient(180deg, rgba(31, 74, 48, 0.72), rgba(17, 38, 20, 0.96)),
-        repeating-linear-gradient(90deg, rgba(255,255,255,0.02) 0 14px, transparent 14px 28px);
-}
-
-.intro-stage-layer-front::after {
-    right: 16%;
-    bottom: 20%;
-    width: 12%;
-    height: 18%;
-    background: linear-gradient(180deg, rgba(31, 74, 48, 0.76), rgba(17, 38, 20, 0.94));
 }
 
 .intro-sprite-actor {
@@ -460,37 +417,8 @@ body.glitch {
     background-size: contain;
     image-rendering: pixelated;
     filter: drop-shadow(0 4px 0 rgba(0, 0, 0, 0.28));
-    cursor: pointer;
     z-index: 3;
-    transition: filter 0.12s ease;
-    pointer-events: auto;
-}
-
-.intro-prop {
-    position: absolute;
-    left: 0;
-    top: 0;
-    background-repeat: no-repeat;
-    background-position: center center;
-    background-size: contain;
-    image-rendering: pixelated;
-    opacity: 0.95;
-    filter: drop-shadow(0 4px 0 rgba(0, 0, 0, 0.25));
-    z-index: 2;
-}
-
-.intro-sprite-actor:hover {
-    filter: drop-shadow(0 5px 0 rgba(255, 229, 143, 0.3));
-}
-
-.intro-sprite-actor.bonked {
-    animation: introActorBonk 0.28s ease;
-}
-
-@keyframes introActorBonk {
-    0% { filter: drop-shadow(0 4px 0 rgba(255, 229, 143, 0.12)); }
-    50% { filter: drop-shadow(0 8px 0 rgba(255, 229, 143, 0.4)); }
-    100% { filter: drop-shadow(0 4px 0 rgba(0, 0, 0, 0.28)); }
+    pointer-events: none;
 }
 
 @keyframes starDrift {
@@ -500,14 +428,14 @@ body.glitch {
 
 @keyframes crawlRise {
     0% {
-        transform: rotateX(24deg) translateY(72%);
+        transform: rotateX(24deg) translateY(54%);
         opacity: 1;
     }
     85% {
         opacity: 1;
     }
     100% {
-        transform: rotateX(24deg) translateY(-180%);
+        transform: rotateX(24deg) translateY(-150%);
         opacity: 0;
     }
 }
@@ -3316,7 +3244,6 @@ body {
 }
 
 .intro-sprite-actor,
-.intro-prop,
 .game-character,
 .effect {
     will-change: transform, opacity;
