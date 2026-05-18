@@ -9,6 +9,75 @@ const gitCommands = {};
 const GIT_CONFIG_STORAGE_KEY = 'gwa_git_config_v1';
 const model = window.repoModel || {};
 
+// Common typos and their corrections
+const commandCorrections = {
+    'inint': 'init',
+    'ini': 'init',
+    'committe': 'commit',
+    'commmit': 'commit',
+    'stauts': 'status',
+    'stat': 'status',
+    'ad': 'add',
+    'staage': 'add',
+    'bran': 'branch',
+    'brnch': 'branch',
+    'checkot': 'checkout',
+    'chechout': 'checkout',
+    'swtich': 'switch',
+    'swich': 'switch',
+    'merg': 'merge',
+    'rebasee': 'rebase',
+    'loggg': 'log',
+    'configg': 'config',
+    'remotes': 'remote',
+    'stashh': 'stash'
+};
+
+function suggestCommand(input) {
+    const lower = input.toLowerCase();
+    if (commandCorrections[lower]) {
+        return `Did you mean: git ${commandCorrections[lower]}?`;
+    }
+    
+    // Find closest match
+    const allCommands = Object.keys(gitCommands).filter(k => k !== '_hash');
+    const matches = allCommands.filter(cmd => {
+        const dist = levenshteinDistance(lower, cmd);
+        return dist <= 2;
+    });
+    
+    if (matches.length === 1) {
+        return `Did you mean: git ${matches[0]}?`;
+    } else if (matches.length > 1) {
+        return `Did you mean: git ${matches.slice(0, 3).join(' or ')}`;
+    }
+    return null;
+}
+
+function levenshteinDistance(a, b) {
+    const matrix = [];
+    for (let i = 0; i <= b.length; i++) {
+        matrix[i] = [i];
+    }
+    for (let j = 0; j <= a.length; j++) {
+        matrix[0][j] = j;
+    }
+    for (let i = 1; i <= b.length; i++) {
+        for (let j = 1; j <= a.length; j++) {
+            if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                matrix[i][j] = matrix[i - 1][j - 1];
+            } else {
+                matrix[i][j] = Math.min(
+                    matrix[i - 1][j - 1] + 1,
+                    matrix[i][j - 1] + 1,
+                    matrix[i - 1][j] + 1
+                );
+            }
+        }
+    }
+    return matrix[b.length][a.length];
+}
+
 // tiny non-crypto hash for file snapshots (good enough for a game)
 function hashContent(str) {
     if (model.hashContent) return model.hashContent(str);
@@ -213,6 +282,8 @@ function applyFetchForRemote(state, remoteName, onlyBranch) {
     });
 
     return { updated, skipped };
+}
+
 function ensureGitEventHistory() {
     window.gameState.gitEventHistory = Array.isArray(window.gameState.gitEventHistory)
         ? window.gameState.gitEventHistory
@@ -790,67 +861,208 @@ function createCommitFromSnapshot(state, opts) {
 
 gitCommands._hash = hashContent;
 
-gitCommands.help = function(args) {
-    const cmd = args[0];
+    // UPDATED: Better help text
+    gitCommands.help = function (args) {
+        const cmd = args[0];
 
-    if (cmd) {
-        const helpText = {
-            init: 'git-init(1)                        Git Manual                        git-init(1)\n\nNAME\n       git init - Create an empty Git repository\n\nSYNOPSIS\n       git init [-q | --quiet] [--bare]',
-            add: 'git-add(1)                      Git Manual                      git-add(1)\n\nNAME\n       git-add - Add file contents to the index',
-            commit: 'git-commit(1)                    Git Manual                    git-commit(1)\n\nNAME\n       git-commit - Record changes to the repository',
-            status: 'git-status(1)                   Git Manual                   git-status(1)\n\nNAME\n       git-status - Show the working tree status',
-            log: 'git-log(1)                       Git Manual                       git-log(1)',
-            branch: 'git-branch(1)                   Git Manual                   git-branch(1)',
-            checkout: 'git-checkout(1)                Git Manual                git-checkout(1)',
-            switch: 'git-switch(1)                  Git Manual                  git-switch(1)',
-            merge: 'git-merge(1)                    Git Manual                    git-merge(1)',
-            submodule: 'git-submodule(1)                Git Manual                git-submodule(1)',
-            stash: 'git-stash(1)                    Git Manual                    git-stash(1)',
-            rebase: 'git-rebase(1)                   Git Manual                   git-rebase(1)',
-            'cherry-pick': 'git-cherry-pick(1)              Git Manual              git-cherry-pick(1)',
-            bisect: 'git-bisect(1)                   Git Manual                   git-bisect(1)',
-            reflog: 'git-reflog(1)                   Git Manual                   git-reflog(1)',
-            reset: 'git-reset(1)                    Git Manual                    git-reset(1)',
-            tag: 'git-tag(1)                       Git Manual                       git-tag(1)'
-        };
+        if (cmd) {
+            const helpText = {
+                init: `git init - Create a new Git repository
 
-        if (helpText[cmd]) {
-            return { success: true, message: helpText[cmd], xp: 5 };
+Usage: git init [options]
+
+Example:
+  git init              # Initialize empty repo
+  git init my-project   # Initialize in directory
+
+Next: Create files, then use git add and git commit.`,
+
+                add: `git add - Stage file contents
+
+Usage: git add [options] <file>
+
+Examples:
+  git add file.txt           # Add specific file
+  git add .                  # Add all changes
+  git add -A                 # Add all changes (including deletions)
+
+Next: Run git commit to save your changes.`,
+
+                commit: `git commit - Record changes to repository
+
+Usage: git commit [options] -m "message"
+
+Examples:
+  git commit -m "Add new feature"
+  git commit -m "feat: add login"  # Conventional commit
+
+Tips:
+  - Write descriptive messages
+  - Use conventional commits (feat:, fix:, docs:)
+  - Stage files first with git add
+
+Next: Use git log to view your history.`,
+
+                status: `git status - Show working tree status
+
+Usage: git status [options]
+
+This shows:
+  - Staged changes (ready to commit)
+  - Modified files (not staged)
+  - Untracked files (new files)
+
+Tip: Run this often to understand your repository state.`,
+
+                log: `git log - Show commit history
+
+Usage: git log [options]
+
+Examples:
+  git log                    # Full history
+  git log --oneline          # Compact view
+  git log -3                 # Last 3 commits
+  git log --graph --oneline  # Visual branch view
+
+Tip: Use --oneline for quick history checks.`,
+
+                branch: `git branch - List, create, or delete branches
+
+Usage: git branch [options] [branch-name]
+
+Examples:
+  git branch                   # List branches
+  git branch feature           # Create new branch
+  git branch -d feature        # Delete branch
+
+Next: Use git switch to change branches.`,
+
+                switch: `git switch - Switch branches
+
+Usage: git switch [options] <branch>
+
+Examples:
+  git switch main              # Switch to main
+  git switch -c feature        # Create and switch
+  git switch feature           # Switch to feature
+
+Tip: Use -c to create a new branch while switching.`,
+
+                merge: `git merge - Join branches
+
+Usage: git merge <branch>
+
+Example:
+  git merge feature            # Merge feature into current
+
+Conflicts:
+  If conflicts occur, edit the files, then:
+  git add <file>
+  git commit
+
+Tip: Check git status before merging.`,
+
+                stash: `git stash - Temporarily save changes
+
+Usage: git stash [options]
+
+Examples:
+  git stash                    # Save changes
+  git stash list               # View stashes
+  git stash pop                # Restore latest
+  git stash apply              # Apply without removing
+
+Tip: Use when you need to switch branches but aren't ready to commit.`,
+
+                tag: `git tag - Create or list tags
+
+Usage: git tag [options] <tag>
+
+Examples:
+  git tag                      # List tags
+  git tag v1.0.0               # Create tag
+  git tag -a v1.0.0 -m "msg"   # Annotated tag
+
+Tip: Use tags for releases and milestones.`,
+
+                rebase: `git rebase - Reapply commits on top
+
+Usage: git rebase [options] <upstream>
+
+Examples:
+  git rebase main              # Rebase onto main
+  git rebase -i HEAD~3         # Interactive rebase
+
+Warning: Don't rebase shared/public branches.
+
+Tip: Use for cleaner history on local work.`,
+
+                config: `git config - Configure Git settings
+
+Usage: git config [options] <key> <value>
+
+Examples:
+  git config --global user.name "Your Name"
+  git config --global user.email "you@example.com"
+  git config --list            # View all settings
+
+Tip: Set your identity once, it persists across repos.`
+            };
+
+            if (helpText[cmd]) {
+                return { success: true, message: helpText[cmd], xp: 5 };
+            }
+
+            const suggestion = suggestCommand(cmd);
+            if (suggestion) {
+                return {
+                    success: false,
+                    message: `git: '${cmd}' is not a git command.\n\n${suggestion}\n\nTry 'git help' for available commands.`,
+                    xp: 0
+                };
+            }
+
+            return {
+                success: false,
+                message: `git: '${cmd}' is not a git command. See 'git help'.\n\nTry 'git help' to see all available commands.`,
+                xp: 0
+            };
         }
-        return { success: false, message: "git: '" + cmd + "' is not a git command. See 'git help'.", xp: 0 };
-    }
 
-    return {
-        success: true,
-        message: `Git - the stupid content tracker
-
-usage: git [--version] [--help] [-C <path>] [-c <name>=<value>]
-           <command> [<args>]
+        return {
+            success: true,
+            message: `Git - the content tracker
 
 Common commands:
-   init      Create an empty Git repository
-   add       Add file contents to the index
-   commit    Record changes to the repository
-   branch    List, create, or delete branches
-   checkout  Switch branches or restore working tree files
-   switch    Switch branches
-   merge     Join two or more development histories
-   submodule Manage nested repositories
-   log       Show commit logs
-   status    Show the working tree status
-   push      Update remote refs
-   pull      Fetch from and integrate with another repository
+  git init      Create a new repository
+  git add       Stage changes
+  git commit    Save changes
+  git status    Check repository state
+  git log       View history
+  git branch    Manage branches
+  git switch    Change branches
+  git merge     Join branches
+  git stash     Temporarily save work
+  git tag       Mark releases
+  git rebase    Rewrite history
+  git config    Configure settings
+  git help      Show this help
 
-See 'git help <command>' for more information.`,
-        xp: 5
+Tip: Type 'git help <command>' for details on any command.`,
+            xp: 5
     };
 };
 
 gitCommands.init = function(args) {
     const fs = window.fileSystemModule;
 
+
     if (isGitRepo()) {
-        return { success: false, message: 'fatal: reinitializing an existing Git repository', xp: 0 };
+        return { 
+            success: false, 
+            message: 'fatal: reinitializing an existing Git repository\n\nTip: You already have a .git folder. No need to run git init again.', 
+            xp: 0 
+        };
     }
 
     fs.createDirectory('.git');
@@ -1079,11 +1291,19 @@ gitCommands.add = function(args) {
     const fs = window.fileSystemModule;
 
     if (args.length === 0) {
-        return { success: false, message: 'Nothing specified, nothing added.', xp: 0 };
+        return { 
+            success: false, 
+            message: 'Nothing specified, nothing added.\n\nUsage: git add <file>\n\nExamples:\n  git add file.txt\n  git add .\n  git add -A\n\nTip: Use git status to see what files need staging.', 
+            xp: 0 
+        };
     }
 
     if (!isGitRepo()) {
-        return { success: false, message: 'fatal: not a git repository (or any of the parent directories): .git', xp: 0 };
+        return { 
+            success: false, 
+            message: 'fatal: not a git repository (or any of the parent directories): .git\n\nTip: Run git init first to create a repository.', 
+            xp: 0 
+        };
     }
 
     const state = ensureGitState();
@@ -1151,9 +1371,18 @@ gitCommands.add = function(args) {
     return { success: true, message: 'Added ' + added + ' file(s)', xp: addAll ? 15 : 10 };
 };
 
+// Export typo detection for UI
+gitCommands.suggestCommand = suggestCommand;
+gitCommands.commandCorrections = commandCorrections;
+
+
 gitCommands.commit = function(args) {
     if (!isGitRepo()) {
-        return { success: false, message: 'fatal: not a git repository (or any of the parent directories): .git', xp: 0 };
+        return { 
+            success: false, 
+            message: 'fatal: not a git repository (or any of the parent directories): .git\n\nTip: Run git init first to create a repository.', 
+            xp: 0 
+        };
     }
 
     const state = ensureGitState();
@@ -1162,11 +1391,10 @@ gitCommands.commit = function(args) {
     if (state.mergeInProgress && state.conflictFiles.length) {
         return {
             success: false,
-            message: 'error: Committing is not possible because you have unmerged files.\nHint: resolve conflicts, `git add`, then `git commit`.',
+            message: 'error: Committing is not possible because you have unmerged files.\n\nTo fix:\n1. Edit the conflict markers in the file\n2. Run: git add <filename>\n3. Then: git commit',
             xp: 0
         };
     }
-
     const commitMessage = parseCommitMessage(args);
     const messageCheck = validateCommitMessage(commitMessage);
     if (!messageCheck.ok) {

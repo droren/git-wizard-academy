@@ -23,6 +23,10 @@ const ui = {
     resolverState: { file: '', ours: '', theirs: '', both: '', choice: 'both' },
     hintTimer: null,
 
+    // NEW: Show stuck hints after repeated failures
+    stuckCounter: 0,
+    stuckTimeout: null,
+
     tokenizeInput: function(input) {
         const tokens = [];
         let current = '';
@@ -658,6 +662,48 @@ const ui = {
         }, 2600);
     },
 
+    getContextualHint: function(input, result, state) {
+        const currentLevel = state.currentLevel || 0;
+        const lesson = window.lessons && window.lessons[currentLevel];
+        
+        // Conflict resolution hint
+        if (state.gitState && state.gitState.mergeInProgress) {
+            if (!state.flags || !state.flags.conflictMarkersIdentified) {
+                return 'Conflict detected! Run `cat <filename>` or `nano <filename>` to see the markers.';
+            }
+            if (!state.flags || !state.flags.conflictResolved) {
+                return 'Edit the file to resolve conflicts, then run `git add <filename>` and `git commit`.';
+            }
+        }
+        
+        // First level identity hint
+        if (currentLevel === 0 && !state.flags) {
+            if (!state.flags || !state.flags.configuredIdentity) {
+                return 'First step: Set your identity with `git config --global user.name "Your Name"`';
+            }
+            if (!state.flags || !state.flags.repoInited) {
+                return 'Next: Initialize a repository with `git init`';
+            }
+        }
+        
+        // No commits yet hint
+        if (currentLevel < 3 && commitsSinceLevelStart(state) === 0) {
+            if (state.gitState && state.gitState.index && Object.keys(state.gitState.index).length > 0) {
+                return 'You have staged files! Run `git commit -m "message"` to save them.';
+            }
+            return 'Tip: Create or edit files, then use `git add` and `git commit`.';
+        }
+        
+        // Branching hint
+        if (currentLevel >= 2 && currentLevel < 4) {
+            if (!state.flags || !state.flags.branchCreated) {
+                return 'Try creating a branch: `git switch -c feature`';
+            }
+        }
+        
+        return '';
+    },
+
     updateConflictUI: function() {
         const btn = document.getElementById('openResolverBtn');
         const inProgress = !!(window.gameState && window.gameState.gitState && window.gameState.gitState.mergeInProgress);
@@ -1086,7 +1132,6 @@ const ui = {
         if (this.terminalMode === 'xterm' && this.xterm) {
             this.xterm.writeln('$ ' + input);
         } else {
-            // Print the command
             const cmdLine = document.createElement('div');
             cmdLine.className = 'terminal-output command';
             cmdLine.textContent = '$ ' + input;
@@ -1108,7 +1153,7 @@ const ui = {
         
         let result = null;
         
-        // Handle git commands
+        // Handle git commands with better error handling
         if (cmd === 'git') {
             const gitCmd = args[0];
             
@@ -1117,9 +1162,23 @@ const ui = {
             } else if (window.gitCommands[gitCmd]) {
                 result = window.gitCommands[gitCmd](args.slice(1));
             } else if (gitCmd === undefined) {
-                result = { success: true, message: 'usage: git <command> [<args>]', xp: 0 };
+                result = { 
+                    success: true, 
+                    message: 'usage: git <command> [<args>]\n\nTry: git help', 
+                    xp: 0 
+                };
             } else {
-                result = { success: false, message: "git: '" + gitCmd + "' is not a git command. See 'git help'.", xp: 0 };
+                // Try to suggest corrections
+                const suggestion = window.gitCommands.suggestCommand(gitCmd);
+                const errorMessage = suggestion 
+                    ? `git: '${gitCmd}' is not a git command.\n\n${suggestion}\n\nTry 'git help' for available commands.`
+                    : `git: '${gitCmd}' is not a git command. See 'git help'.`;
+                
+                result = { 
+                    success: false, 
+                    message: errorMessage, 
+                    xp: 0 
+                };
             }
         }
         // Handle shell help/?
@@ -1127,7 +1186,7 @@ const ui = {
             result = window.shellCommands.help();
             window.gameEngine.addXP(2);
         }
-        // Handle shell commands
+        // Handle shell commands with better error handling
         else if (window.shellCommands[cmd]) {
             result = window.shellCommands[cmd](args);
             
@@ -1135,12 +1194,21 @@ const ui = {
                 window.gameEngine.addXP(result.xp);
             }
         }
-        // Unknown command
+        // Unknown command with suggestions
         else {
-            result = { success: false, message: cmd + ': command not found', xp: 0 };
+            const suggestion = window.gitCommands.suggestCommand(cmd);
+            const errorMessage = suggestion 
+                ? `${cmd}: command not found\n\n${suggestion}`
+                : `${cmd}: command not found\n\nTry 'help' for available commands.`;
+            
+            result = { 
+                success: false, 
+                message: errorMessage, 
+                xp: 0 
+            };
         }
         
-        // Display result
+        // Handle async results
         if (result && typeof result.then === 'function') {
             result = await result;
         }
@@ -1153,26 +1221,55 @@ const ui = {
             }
         }
         
-        // Check objectives after git commands
+        // Check objectives after git commands with feedback
         if (cmd === 'git') {
             window.gameEngine.checkObjectives();
+            
+            // NEW: Show helpful hints if user seems stuck
+            this.showStuckHint(cmd, args, result);
         }
 
         this.updateConflictUI();
-        const hint = (window.lessonGuides && window.lessonGuides.getHint)
-            ? window.lessonGuides.getHint(window.gameState.currentLevel, input, result, window.gameState)
-            : '';
+        
+        // NEW: Contextual hints based on current state
+        const hint = this.getContextualHint(input, result, window.gameState);
         if (hint) this.showHintToast(hint);
-        // Conflict resolver is opt-in by lesson (future PR-style scenarios).
         
-        // Scroll to show input
         this.scrollToInput();
-        
-        // Save game
         window.gameEngine.saveGame();
         return result;
     },
     
+    showStuckHint: function(cmd, args, result) {
+        // Reset counter on success
+        if (result && result.success) {
+            this.stuckCounter = 0;
+            if (this.stuckTimeout) clearTimeout(this.stuckTimeout);
+            return;
+        }
+        
+        this.stuckCounter++;
+        
+        // Show hint after 3 failed attempts on same command type
+        if (this.stuckCounter >= 3) {
+            const hints = {
+                'git init': 'Tip: Make sure you\'re in the right directory first. Use `pwd` to check.',
+                'git add': 'Tip: Stage files before committing. Try `git add .` to add all files.',
+                'git commit': 'Tip: You need to stage files first with `git add`, then commit.',
+                'git status': 'Tip: This shows your current repository state. Run it often!',
+                'git branch': 'Tip: Use `git switch -c <name>` to create and switch to a new branch.',
+                'git switch': 'Tip: Make sure the branch exists. Use `git branch` to list branches.',
+                'git merge': 'Tip: Make sure you have at least two branches to merge.',
+                'git log': 'Tip: Use `git log --oneline` for a compact view of your history.'
+            };
+            
+            const hint = hints[`${cmd} ${args[0] || ''}`] || hints[cmd] || null;
+            if (hint) {
+                this.showHintToast(hint);
+                this.stuckCounter = 0; // Reset after showing hint
+            }
+        }
+    },
     // Print output to terminal
     printOutput: function(message, isError) {
         this.writeToTerminal(message, isError);
@@ -1192,6 +1289,14 @@ const ui = {
             pop.remove();
         }, 1000);
     }
+};
+
+// Helper function
+function commitsSinceLevelStart(state) {
+    const start = state.levelContext && Number.isFinite(state.levelContext.startCommitTotal)
+        ? state.levelContext.startCommitTotal : 0;
+    const now = Number.isFinite(state.commits) ? state.commits : 0;
+    return Math.max(0, now - start);
 };
 
 // Export

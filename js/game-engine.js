@@ -11,7 +11,14 @@ currentLevel: 0,
     // Player rank (XP based)
     playerLevel: 1,
     lastPlayedDate: null,
-
+    
+    // Progress-tracking
+    progressTracking: {
+        levelStartTime: null,
+        lastCommandTime: null,
+        commandsInCurrentLevel: 0,
+        stuckWarningShown: false
+    },
     totalXP: 0,
     xpForCurrentLevel: 0,
     xpRequiredForLevel: 300,
@@ -908,6 +915,12 @@ const gameEngine = {
         const lesson = (window.lessons && window.lessons[levelIndex]) ? window.lessons[levelIndex] : null;
         if (!lesson) return;
 
+        // Reset progress tracking for new level
+        this.progressTracking.levelStartTime = Date.now();
+        this.progressTracking.lastCommandTime = Date.now();
+        this.progressTracking.commandsInCurrentLevel = 0;
+        this.progressTracking.stuckWarningShown = false;
+        
         if (this._bossIntroTimer) {
             clearTimeout(this._bossIntroTimer);
             this._bossIntroTimer = null;
@@ -1217,7 +1230,13 @@ const gameEngine = {
         if (window.gameState.gitState && window.gameState.gitState.currentBranch) {
             window.gameState.flags.visitedBranches[window.gameState.gitState.currentBranch] = true;
         }
-        
+    
+        // NEW: Start stuck detection timer
+        if (this.stuckTimer) clearTimeout(this.stuckTimer);
+        this.stuckTimer = setTimeout(() => {
+            this.checkIfUserIsStuck();
+        }, 300000); // 5 minutes without progress
+            
         // Update UI
         this.renderLessonContent(levelIndex);
         
@@ -1254,6 +1273,111 @@ const gameEngine = {
         this.renderLiveGitHubState();
         this.saveGame();
     },    
+
+    recordCommand: function() {
+        this.progressTracking.lastCommandTime = Date.now();
+        this.progressTracking.commandsInCurrentLevel++;
+        this.progressTracking.stuckWarningShown = false; // Reset on new command
+        
+        // Reset stuck timer
+        if (this.stuckTimer) clearTimeout(this.stuckTimer);
+        this.stuckTimer = setTimeout(() => {
+            this.checkIfUserIsStuck();
+        }, 300000);
+    },
+
+    // NEW: Check if user is stuck and provide help
+    checkIfUserIsStuck: function() {
+        const now = Date.now();
+        const timeSinceLastCommand = now - this.progressTracking.lastCommandTime;
+        const timeInLevel = now - this.progressTracking.levelStartTime;
+        
+        // Only check if user has been in level for at least 3 minutes
+        if (timeInLevel < 180000) return;
+        
+        // Check if objectives are complete
+        const allComplete = window.gameState.currentObjectives.every((o) => o === 'complete');
+        if (allComplete) return;
+        
+        // If no commands in last 5 minutes, show help
+        if (timeSinceLastCommand > 300000 && !this.progressTracking.stuckWarningShown) {
+            this.progressTracking.stuckWarningShown = true;
+            
+            const hint = this.getStuckHint();
+            if (hint) {
+                if (window.ui && window.ui.showHintToast) {
+                    window.ui.showHintToast(hint);
+                }
+                
+                // Also show in terminal
+                const terminalHistory = document.getElementById('terminalHistory');
+                if (terminalHistory) {
+                    const div = document.createElement('div');
+                    div.className = 'terminal-output info';
+                    div.innerHTML = '💡 <strong>Stuck?</strong> ' + hint;
+                    terminalHistory.appendChild(div);
+                }
+            }
+        }
+    },
+
+    // NEW: Get stuck hint based on current state
+    getStuckHint: function() {
+        const state = window.gameState;
+        const currentLevel = state.currentLevel || 0;
+        const lesson = window.lessons && window.lessons[currentLevel];
+        
+        if (!lesson) return 'Try running `help` to see available commands.';
+        
+        // Check what objectives are incomplete
+        const incomplete = lesson.objectives.filter((_, idx) => 
+            state.currentObjectives[idx] !== 'complete'
+        );
+        
+        if (currentLevel === 0) {
+            if (!state.flags || !state.flags.configuredIdentity) {
+                return 'Set your Git identity: `git config --global user.name "Your Name"`';
+            }
+            if (!state.flags || !state.flags.repoInited) {
+                return 'Initialize a repository: `git init`';
+            }
+            return 'Stage files with `git add`, then commit with `git commit -m "message"`';
+        }
+        
+        if (currentLevel === 1) {
+            return 'Check your status with `git status`, make 2+ commits, then view history with `git log --oneline`';
+        }
+        
+        if (currentLevel === 2) {
+            return 'Create a branch with `git switch -c feature`, make commits on it, then merge back';
+        }
+        
+        if (currentLevel === 3) {
+            return 'Merge branches to create a conflict, then resolve it by editing the file and committing';
+        }
+        
+        if (currentLevel === 4) {
+            return 'Try: `git stash`, `git stash list`, `git stash pop`, `git tag -a v1.0.0 -m "release"`';
+        }
+        
+        if (currentLevel === 5) {
+            return 'Try rebasing: `git rebase main` or interactive: `git rebase -i HEAD~2`';
+        }
+        
+        if (currentLevel === 6) {
+            return 'Use `git reflog` to see your history, then `git reset --soft HEAD~1` to recover';
+        }
+        
+        if (currentLevel === 7) {
+            return 'Try: `git cherry-pick <sha>` or `git bisect start` to find bugs';
+        }
+        
+        if (currentLevel >= 8) {
+            return 'Set up remotes with `git remote add origin <url>`, then push and create a PR';
+        }
+        
+        return 'Try running `help` to see available commands, or `git help <command>` for details.';
+    },
     // Render objectives for current level
     renderObjectives: function() {
         const lesson = window.lessons[window.gameState.currentLevel];
