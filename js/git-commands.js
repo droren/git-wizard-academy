@@ -1282,8 +1282,6 @@ gitCommands.merge = function(args) {
     }
 
     const state = ensureGitState();
-    window.gameState.flags = window.gameState.flags || {};
-    window.gameState.flags.ranMerge = true;
 
     if (state.mergeInProgress) {
         return {
@@ -1317,6 +1315,9 @@ gitCommands.merge = function(args) {
         Object.keys(sourceSnapshot).forEach((name) => fs.writeFile(name, sourceSnapshot[name]));
         state.refs[state.currentBranch] = theirsSha;
         refreshTrackedFiles(state);
+        window.gameState.flags = window.gameState.flags || {};
+        window.gameState.flags.ranMerge = true;
+        window.gameState.flags.mergeCompleted = true;
         playGitCue('success');
         reactCharacter('merge-resolved', { mode: 'fast-forward' });
         return { success: true, message: 'Updating (empty)\nFast-forward', xp: 25 };
@@ -1341,6 +1342,7 @@ gitCommands.merge = function(args) {
         refreshTrackedFiles(state);
         window.gameState.merges++;
         window.gameState.flags = window.gameState.flags || {};
+        window.gameState.flags.ranMerge = true;
         window.gameState.flags.mergeCompleted = true;
         playGitCue('success');
         reactCharacter('merge-resolved', { mode: 'fast-forward' });
@@ -1417,6 +1419,7 @@ gitCommands.merge = function(args) {
 
         window.gameState.conflicts++;
         window.gameState.flags = window.gameState.flags || {};
+        window.gameState.flags.ranMerge = true;
         window.gameState.flags.conflictCreated = true;
         playGitCue('alarm');
         if (window.Effects && window.Effects.shake) window.Effects.shake(240);
@@ -1450,6 +1453,7 @@ gitCommands.merge = function(args) {
 
     window.gameState.merges++;
     window.gameState.flags = window.gameState.flags || {};
+    window.gameState.flags.ranMerge = true;
     window.gameState.flags.mergeCompleted = true;
     playGitCue('success');
     if (window.Effects && window.Effects.sparkle) window.Effects.sparkle({ left: 62, top: 54, lifeMs: 900, scale: 1 });
@@ -1610,12 +1614,14 @@ gitCommands.submodule = function(args) {
         return { success: false, message: 'fatal: not a git repository', xp: 0 };
     }
     const sub = args[0] || '';
-    window.gameState.flags = window.gameState.flags || {};
-    window.gameState.flags.ranSubmodule = true;
     if (sub === 'add' && args[1] && args[2]) {
+        window.gameState.flags = window.gameState.flags || {};
+        window.gameState.flags.ranSubmodule = true;
         return { success: true, message: "Submodule '" + args[2] + "' added", xp: 25 };
     }
     if (sub === 'update' || sub === 'init') {
+        window.gameState.flags = window.gameState.flags || {};
+        window.gameState.flags.ranSubmodule = true;
         return { success: true, message: 'Submodule operation complete', xp: 10 };
     }
     return { success: true, message: 'usage: git submodule add <url> <path> | update | init', xp: 0 };
@@ -1627,9 +1633,7 @@ gitCommands.rebase = function(args) {
     }
 
     const state = ensureGitState();
-    localStorage.setItem('gwa_rebase', 'true');
     window.gameState.flags = window.gameState.flags || {};
-    window.gameState.flags.ranRebase = true;
     const interactive = args.includes('-i') || args.includes('--interactive');
     const plain = args.filter((a) => !a.startsWith('-'));
     const upstreamRef = plain[0];
@@ -1651,15 +1655,6 @@ gitCommands.rebase = function(args) {
         return { success: false, message: "fatal: invalid upstream '" + upstreamRef + "'", xp: 0 };
     }
 
-    if (interactive) {
-        window.gameState.flags.ranRebaseInteractive = true;
-        // In this educational simulator, invoking interactive mode is enough to satisfy
-        // "edited/reordered/squashed" intent even if the replay is a no-op.
-        window.gameState.flags.ranRebaseEdited = true;
-    } else {
-        window.gameState.flags.ranRebaseBasic = true;
-    }
-
     const headSha = state.refs[state.currentBranch] || null;
     if (!headSha) {
         return { success: false, message: 'Current branch has no commits to rebase.', xp: 0 };
@@ -1676,6 +1671,14 @@ gitCommands.rebase = function(args) {
     }
 
     if (!toReplay.length) {
+        localStorage.setItem('gwa_rebase', 'true');
+        window.gameState.flags.ranRebase = true;
+        if (interactive) {
+            window.gameState.flags.ranRebaseInteractive = true;
+            window.gameState.flags.ranRebaseEdited = true;
+        } else {
+            window.gameState.flags.ranRebaseBasic = true;
+        }
         return {
             success: true,
             message: interactive ? 'Successfully rebased and edited 0 commit(s)\nUpdated refs/heads/' + state.currentBranch : 'Current branch is up to date.',
@@ -1723,10 +1726,14 @@ gitCommands.rebase = function(args) {
     state.staged = [];
     writeWorkingSnapshot(baseSnapshot);
     refreshTrackedFiles(state);
+    localStorage.setItem('gwa_rebase', 'true');
+    window.gameState.flags.ranRebase = true;
     window.gameState.flags.ranRebaseBasic = true;
 
     if (interactive) {
         localStorage.setItem('gwa_interactive_rebase', 'true');
+        window.gameState.flags.ranRebaseInteractive = true;
+        window.gameState.flags.ranRebaseEdited = true;
         if (window.gameEngine && document.getElementById('bossOverlay')?.classList.contains('show')) {
             window.gameEngine.damageBoss(40);
         }
@@ -1749,9 +1756,7 @@ gitCommands.cherrypick = function(args) {
     }
 
     const state = ensureGitState();
-    localStorage.setItem('gwa_cherrypick', 'true');
     window.gameState.flags = window.gameState.flags || {};
-    window.gameState.flags.ranCherryPick = true;
     const targetRef = args.find((a) => !a.startsWith('-'));
 
     if (!targetRef) {
@@ -1802,6 +1807,8 @@ gitCommands.cherrypick = function(args) {
     state.index = {};
     state.staged = [];
     window.gameState.commits++;
+    localStorage.setItem('gwa_cherrypick', 'true');
+    window.gameState.flags.ranCherryPick = true;
 
     if (window.gameEngine) {
         window.gameEngine.checkObjectives();

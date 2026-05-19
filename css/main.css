@@ -2230,6 +2230,30 @@ body.glitch {
 .guide-line { opacity: 0; transform: translateY(5px); animation: guideLineIn .22s ease-out forwards; }
 @keyframes guideLineIn { to { opacity: 1; transform: translateY(0); } }
 
+.certificate-library {
+    display: grid;
+    gap: 8px;
+}
+
+.certificate-library-btn {
+    border: 1px solid rgba(255,255,255,.14);
+    border-radius: 12px;
+    background: rgba(255,255,255,.07);
+    color: var(--text-primary);
+    padding: 10px 12px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.certificate-library-btn:hover {
+    background: rgba(255,255,255,.12);
+}
+
+.empty-library {
+    color: var(--text-secondary);
+    font-size: .92rem;
+}
+
 .modal-lore {
     margin-top: 10px;
     color: var(--text-secondary);

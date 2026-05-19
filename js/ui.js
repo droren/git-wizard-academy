@@ -925,6 +925,43 @@ const ui = {
         this.playGuideTick();
     },
 
+    showRecordedRun: function(levelIndex, run) {
+        const overlay = document.getElementById('levelGuideOverlay');
+        const title = document.getElementById('guideTitle');
+        const subtitle = document.getElementById('guideSubtitle');
+        const storyBeat = document.getElementById('guideStoryBeat');
+        const terminal = document.getElementById('guideTerminal');
+        const playPause = document.getElementById('guidePlayPauseBtn');
+        if (!overlay || !terminal) return;
+
+        if (this.guideTimer) clearTimeout(this.guideTimer);
+        const lesson = window.lessons && window.lessons[levelIndex] ? window.lessons[levelIndex] : null;
+        const commands = run && Array.isArray(run.commands) && run.commands.length
+            ? run.commands
+            : ((window.lessonGuides && window.lessonGuides.getDemo) ? window.lessonGuides.getDemo(levelIndex).steps : []);
+
+        title.textContent = 'Successful Run: ' + (lesson ? lesson.title : 'Level ' + (levelIndex + 1));
+        subtitle.textContent = run && run.completedAt
+            ? 'Recorded on ' + new Date(run.completedAt).toLocaleString()
+            : 'No recorded completion yet. Showing the guided demo instead.';
+        if (storyBeat) storyBeat.textContent = 'This playback is evidence only; it does not mutate the level state.';
+        terminal.innerHTML = '';
+        this.guidePlayState = {
+            playing: true,
+            step: 0,
+            line: 0,
+            steps: commands.map(function(entry) {
+                return {
+                    cmd: entry.input || entry.cmd || '',
+                    out: entry.message || entry.out || ''
+                };
+            })
+        };
+        if (playPause) playPause.textContent = 'Pause';
+        overlay.classList.add('show');
+        this.playGuideTick();
+    },
+
     playGuideTick: function() {
         if (!this.guidePlayState.playing) return;
         const terminal = document.getElementById('guideTerminal');
@@ -1537,6 +1574,10 @@ const ui = {
             if (result.success && window.AmbientEngine && typeof window.AmbientEngine.markProgress === 'function') {
                 window.AmbientEngine.markProgress();
             }
+        }
+
+        if (window.gameEngine && typeof window.gameEngine.recordCommandResult === 'function') {
+            window.gameEngine.recordCommandResult(input, result || { success: false, message: '' });
         }
         
         // Check objectives after git commands

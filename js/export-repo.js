@@ -306,7 +306,7 @@ function applyRefs(repoDir, state, shaMap, mode, workflowRoot, rootSha) {
                 GIT_COMMITTER_EMAIL: (tag.tagger && tag.tagger.email) || 'you@example.com',
                 GIT_COMMITTER_DATE: (tag.tagger && tag.tagger.date) || new Date().toISOString()
             };
-            runGitQuiet(['tag', '-a', tagName, '-m', tag.message || tagName, target], repoDir, env);
+            runGitQuiet(['-c', 'tag.gpgSign=false', 'tag', '-a', tagName, '-m', tag.message || tagName, target], repoDir, env);
         } else {
             runGitQuiet(['tag', tagName, target], repoDir);
         }

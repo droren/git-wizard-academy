@@ -42,8 +42,19 @@
         return Math.max(0, now - start);
     }
 
+    function successfulLevelCommands(state) {
+        const ctx = state.levelContext || {};
+        if (Array.isArray(ctx.successfulCommands)) return ctx.successfulCommands;
+        if (Array.isArray(state.levelCommandResults)) {
+            return state.levelCommandResults
+                .filter((entry) => entry && entry.success === true)
+                .map((entry) => entry.input || '');
+        }
+        return [];
+    }
+
     function commandUsed(state, token) {
-        const history = Array.isArray(state.commandHistory) ? state.commandHistory : [];
+        const history = successfulLevelCommands(state);
         return history.some((c) => String(c).toLowerCase().includes(String(token).toLowerCase()));
     }
 

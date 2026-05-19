@@ -20,6 +20,7 @@ function baseState() {
       startCommitTotal: 0,
       startMergeTotal: 0,
       startBranchCount: 1,
+      successfulCommands: [],
     },
     gitState: {
       branches: ['main'],
@@ -124,6 +125,8 @@ function run() {
     assert.strictEqual(evaluateObjective(4, 2, s), true);
     s.flags.ranLog = true;
     s.commandHistory.push('git log --oneline');
+    assert.strictEqual(evaluateObjective(4, 3, s), false, 'global command history should not satisfy current level objective');
+    s.levelContext.successfulCommands.push('git log --oneline');
     assert.strictEqual(evaluateObjective(4, 3, s), true);
   }
 

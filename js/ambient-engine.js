@@ -41,7 +41,10 @@
             speed: 56,
             hideLabel: true
         });
-        if (window.Effects && Math.random() < 0.3) window.Effects.glitch(120);
+        if (window.Effects && Math.random() < 0.3) {
+            if (typeof window.Effects.glitch === 'function') window.Effects.glitch(120);
+            else if (typeof window.Effects.spark === 'function') window.Effects.spark({ left: 36, top: 76, lifeMs: 420, scale: 0.45 });
+        }
         return id;
     }
 

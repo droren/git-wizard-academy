@@ -33,6 +33,9 @@ currentLevel: 0,
         tierProgress: {},
         completedLevels: [],
         currentObjectives: [],
+        levelCommandHistory: [],
+        levelCommandResults: [],
+        completedLevelRuns: {},
     gitState: {
         branches: ['main'],
         currentBranch: 'main',
@@ -301,6 +304,12 @@ const gameEngine = {
         const record = this.buildCertificateRecord(levelIndex);
         if (!record) return false;
 
+        this.storeCertificateRecord(record);
+        return this.downloadCertificateRecord(record);
+    },
+
+    storeCertificateRecord: function(record) {
+        if (!record) return false;
         window.gameState.certificates = Array.isArray(window.gameState.certificates) ? window.gameState.certificates : [];
         if (!this.hasCertificateForTier(record.tierKey)) {
             window.gameState.certificates.push(record);
@@ -309,7 +318,12 @@ const gameEngine = {
         if (window.certificateStore && window.certificateStore.save) {
             window.certificateStore.save(window.gameState.certificates);
         }
+        this.renderCertificateLibrary();
+        return true;
+    },
 
+    downloadCertificateRecord: function(record) {
+        if (!record) return false;
         const esc = (window.ui && window.ui.escapeHtml)
             ? window.ui.escapeHtml.bind(window.ui)
             : function(value) {
@@ -339,6 +353,33 @@ const gameEngine = {
         a.remove();
         setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
         return true;
+    },
+
+    downloadCertificateByTier: function(tierKey) {
+        const list = Array.isArray(window.gameState.certificates) ? window.gameState.certificates : [];
+        const record = list.find(function(c) { return c.tierKey === tierKey; });
+        return this.downloadCertificateRecord(record);
+    },
+
+    renderCertificateLibrary: function() {
+        const box = document.getElementById('certificateLibrary');
+        if (!box) return;
+        const list = Array.isArray(window.gameState.certificates) ? window.gameState.certificates : [];
+        if (!list.length) {
+            box.innerHTML = '<div class="empty-library">No diplomas earned yet.</div>';
+            return;
+        }
+        box.innerHTML = '';
+        list.slice().sort(function(a, b) {
+            return String(a.achievedAt || '').localeCompare(String(b.achievedAt || ''));
+        }).forEach(function(record) {
+            const btn = document.createElement('button');
+            btn.className = 'certificate-library-btn';
+            btn.type = 'button';
+            btn.textContent = (record.badge || '🏅') + ' ' + (record.tierName || 'Certificate');
+            btn.onclick = function() { window.gameEngine.downloadCertificateByTier(record.tierKey); };
+            box.appendChild(btn);
+        });
     },
 
     openExportModal: function() {
@@ -600,6 +641,7 @@ const gameEngine = {
                 certificates: window.gameState.certificates,
                 liveGitHub: window.gameState.liveGitHub,
                 tierProgress: window.gameState.tierProgress,
+                completedLevelRuns: window.gameState.completedLevelRuns,
                 flags: window.gameState.flags,
                 gitState: window.gameState.gitState
             },
@@ -697,6 +739,9 @@ const gameEngine = {
         if (!Number.isFinite(window.gameState.xpRequiredForLevel) || window.gameState.xpRequiredForLevel < 50) window.gameState.xpRequiredForLevel = 300;
         if (!Array.isArray(window.gameState.completedLevels)) window.gameState.completedLevels = [];
         if (!Array.isArray(window.gameState.achievements)) window.gameState.achievements = [];
+        if (!Array.isArray(window.gameState.levelCommandHistory)) window.gameState.levelCommandHistory = [];
+        if (!Array.isArray(window.gameState.levelCommandResults)) window.gameState.levelCommandResults = [];
+        if (!window.gameState.completedLevelRuns || typeof window.gameState.completedLevelRuns !== 'object') window.gameState.completedLevelRuns = {};
         if (!window.gameState.tierProgress || typeof window.gameState.tierProgress !== 'object') window.gameState.tierProgress = {};
         if (!Array.isArray(window.gameState.commandHistory)) window.gameState.commandHistory = [];
         if (!window.gameState.flags) window.gameState.flags = {};
@@ -704,6 +749,7 @@ const gameEngine = {
         if (typeof window.gameState.flags.configuredIdentity !== 'boolean') window.gameState.flags.configuredIdentity = false;
         if (typeof window.gameState.introSeen !== 'boolean') window.gameState.introSeen = false;
 
+        this.refreshIdentityFlagsFromConfig();
         this.syncGlobalEnvironmentConfig();
 
         // Daily streak (very simple: keep streak if played yesterday; reset if gap)
@@ -737,6 +783,7 @@ const gameEngine = {
             this.updateStats();
             this.renderAchievements();
             this.renderCertificateButton();
+            this.renderCertificateLibrary();
             this.renderLiveGitHubState();
             this.saveGame();
         } else {
@@ -746,6 +793,7 @@ const gameEngine = {
             this.loadLevel(levelIndex);
             this.updateStats();
             this.renderAchievements();
+            this.renderCertificateLibrary();
             this.renderLiveGitHubState();
             this.saveGame();
         }
@@ -778,6 +826,15 @@ const gameEngine = {
         fs.createDirectory(homePath);
         fs.writeFile(homePath + '/.gitconfig', buildGlobalGitConfigText(cfg));
         fs.writeFile(homePath + '/.game-settings.json', JSON.stringify(window.gameSettingsStore && window.gameSettingsStore.load ? window.gameSettingsStore.load() : {}, null, 2) + '\n');
+    },
+
+    refreshIdentityFlagsFromConfig: function() {
+        const cfg = window.configStore && window.configStore.load ? window.configStore.load() : {};
+        window.gameState.flags = window.gameState.flags || {};
+        if (cfg['user.name'] && cfg['user.email']) {
+            window.gameState.flags.configuredIdentity = true;
+            window.gameState.flags.identityConfirmed = true;
+        }
     },
     
     // Add XP and check for level up
@@ -1154,9 +1211,14 @@ const gameEngine = {
             }
         }
         
+        const preparedLevelContext = window.gameState.levelContext && typeof window.gameState.levelContext === 'object'
+            ? Object.assign({}, window.gameState.levelContext)
+            : {};
         window.gameState.currentObjectives = lesson.objectives ? [...lesson.objectives] : [];
         window.gameState.levelReadyToProceed = false;
-        window.gameState.levelContext = {
+        window.gameState.levelCommandHistory = [];
+        window.gameState.levelCommandResults = [];
+        window.gameState.levelContext = Object.assign(preparedLevelContext, {
             startCommitTotal: window.gameState.commits || 0,
             startMergeTotal: window.gameState.merges || 0,
             startBranchCount: (window.gameState.gitState && Array.isArray(window.gameState.gitState.branches))
@@ -1168,8 +1230,9 @@ const gameEngine = {
             startHeadSha: (window.gameState.gitState && window.gameState.gitState.refs && window.gameState.gitState.currentBranch)
                 ? window.gameState.gitState.refs[window.gameState.gitState.currentBranch] || null
                 : null,
+            successfulCommands: [],
             levelStartedAt: new Date().toISOString()
-        };
+        });
         window.gameState.flags.visitedBranches = {};
         window.gameState.flags.mergeConflictBoss = !!lesson.conflictScenario;
         if (window.gameState.gitState && window.gameState.gitState.currentBranch) {
@@ -1182,6 +1245,7 @@ const gameEngine = {
         this.renderObjectives();
         this.updateObjectivesPanelState();
         this.renderCertificateButton();
+        this.renderCertificateLibrary();
         this.renderLiveGitHubState();
         this.renderLevelNav();
         this.updateStats();
@@ -1341,10 +1405,15 @@ const gameEngine = {
                 tierName: lesson.tier,
                 completedAt: new Date().toISOString()
             };
+            const cfg = this.getVisibleGlobalConfig();
+            if (this.isIdentityConfirmed() && cfg['user.name'] && cfg['user.email']) {
+                this.storeCertificateRecord(this.buildCertificateRecord(window.gameState.currentLevel));
+            }
         }
         if (window.gameState.completedLevels.indexOf(window.gameState.currentLevel) === -1) {
             window.gameState.completedLevels.push(window.gameState.currentLevel);
         }
+        this.recordSuccessfulLevelRun();
 
         window.gameState.flags = window.gameState.flags || {};
         if (!window.gameState.flags.levelCompletionCelebrated) {
@@ -1354,8 +1423,61 @@ const gameEngine = {
             }
         }
         this.renderCertificateButton();
+        this.renderCertificateLibrary();
         this.renderLiveGitHubState();
         this.updateObjectivesPanelState();
+    },
+
+    recordCommandResult: function(input, result) {
+        window.gameState.levelCommandHistory = Array.isArray(window.gameState.levelCommandHistory)
+            ? window.gameState.levelCommandHistory
+            : [];
+        window.gameState.levelCommandResults = Array.isArray(window.gameState.levelCommandResults)
+            ? window.gameState.levelCommandResults
+            : [];
+        const entry = {
+            input: String(input || ''),
+            success: !!(result && result.success === true),
+            message: result && result.message ? String(result.message) : '',
+            at: new Date().toISOString()
+        };
+        window.gameState.levelCommandHistory.push(entry.input);
+        window.gameState.levelCommandResults.push(entry);
+        window.gameState.levelContext = window.gameState.levelContext || {};
+        window.gameState.levelContext.successfulCommands = window.gameState.levelCommandResults
+            .filter(function(item) { return item && item.success; })
+            .map(function(item) { return item.input; });
+    },
+
+    recordSuccessfulLevelRun: function() {
+        const levelIndex = window.gameState.currentLevel;
+        window.gameState.completedLevelRuns = window.gameState.completedLevelRuns || {};
+        if (window.gameState.completedLevelRuns[levelIndex]) return;
+        const lesson = window.lessons && window.lessons[levelIndex] ? window.lessons[levelIndex] : null;
+        window.gameState.completedLevelRuns[levelIndex] = {
+            levelIndex: levelIndex,
+            levelTitle: lesson ? lesson.title : 'Level ' + (levelIndex + 1),
+            completedAt: new Date().toISOString(),
+            commands: (Array.isArray(window.gameState.levelCommandResults) ? window.gameState.levelCommandResults : [])
+                .filter(function(entry) { return entry && entry.success; })
+                .map(function(entry) {
+                    return {
+                        input: entry.input,
+                        message: entry.message,
+                        at: entry.at
+                    };
+                })
+        };
+    },
+
+    replaySuccessfulLevelRun: function(levelIndex) {
+        const idx = Number.isFinite(Number(levelIndex)) ? Number(levelIndex) : window.gameState.currentLevel;
+        const run = window.gameState.completedLevelRuns && window.gameState.completedLevelRuns[idx];
+        if (window.ui && window.ui.showRecordedRun) {
+            window.ui.showRecordedRun(idx, run || null);
+        } else if (window.ui && window.ui.showLevelGuide) {
+            window.ui.showLevelGuide(idx);
+        }
     },
     
     // Render level navigation
@@ -1567,7 +1689,7 @@ const gameEngine = {
         if (window.gameState.currentLevel < window.lessons.length - 1) {
             this.loadLevel(window.gameState.currentLevel + 1);
         } else {
-            alert('🎉 CONGRATULATIONS! You are now a Git Grand Wizard! 🧙‍♂️');
+            alert('CONGRATULATIONS! You are now a Git Grand Wizard!');
         }
     },
     
@@ -1584,6 +1706,13 @@ const gameEngine = {
 
         this.clearBossTimer();
         if (window.characterSystem && window.characterSystem.clearAll) window.characterSystem.clearAll();
+        const levelIndex = window.gameState.currentLevel || 0;
+        window.gameState.completedLevels = (Array.isArray(window.gameState.completedLevels) ? window.gameState.completedLevels : [])
+            .filter(function(idx) { return idx !== levelIndex; });
+        const lesson = window.lessons && window.lessons[levelIndex] ? window.lessons[levelIndex] : null;
+        if (lesson && lesson.tierIsCapstone && window.gameState.tierProgress) {
+            delete window.gameState.tierProgress[lesson.tierKey];
+        }
         this.loadLevel(window.gameState.currentLevel || 0);
         this.updateStats();
         this.renderObjectives();
@@ -1628,10 +1757,12 @@ const gameEngine = {
         window.gameState.introSeen = false;
         this.clearBossTimer();
         if (window.characterSystem && window.characterSystem.clearAll) window.characterSystem.clearAll();
+        this.refreshIdentityFlagsFromConfig();
         this.syncGlobalEnvironmentConfig();
         this.loadLevel(0);
         this.updateStats();
         this.renderAchievements();
+        this.renderCertificateLibrary();
         this.renderLevelNav();
         this.saveGame();
         if (window.ui && window.ui.beginBootSequence) {

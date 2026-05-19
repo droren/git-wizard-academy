@@ -293,6 +293,19 @@
                     </div>
                 </div>
             </section>
+
+            <section class="panel sidebar-panel">
+                <div class="panel-header">
+                    <div class="panel-title-group">
+                        <span class="panel-kicker">Diplomas</span>
+                        <span class="panel-title">Printable Awards</span>
+                    </div>
+                    <button class="panel-action-btn icon-toggle" data-target="certificatePanelContent" type="button">▾</button>
+                </div>
+                <div class="panel-content certificate-panel-content" id="certificatePanelContent">
+                    <div class="certificate-library" id="certificateLibrary"></div>
+                </div>
+            </section>
         </aside>
     </main>
 
@@ -311,6 +324,7 @@
             </div>
             <div class="modal-buttons">
                 <button class="btn btn-secondary" onclick="window.gameEngine.closeModal()">Review Lesson</button>
+                <button class="btn btn-secondary" onclick="window.gameEngine.replaySuccessfulLevelRun(window.gameState.currentLevel)">Replay Successful Run</button>
                 <button class="btn btn-primary" onclick="window.gameEngine.nextLevel()">Next Level →</button>
             </div>
         </div>
