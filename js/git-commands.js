@@ -6,6 +6,29 @@
 
 const gitCommands = {};
 
+const builtInGitAliases = {
+    st: 'status',
+    stat: 'status',
+    ci: 'commit',
+    co: 'checkout',
+    sw: 'switch',
+    br: 'branch',
+    lg: 'log --oneline',
+    l: 'log --oneline',
+    last: 'log -1 --stat',
+    unstage: 'reset HEAD --',
+    amend: 'commit --amend',
+    cp: 'cherry-pick',
+    rb: 'rebase',
+    mg: 'merge',
+    pl: 'pull',
+    ps: 'push',
+    f: 'fetch',
+    aa: 'add --all',
+    ap: 'add --patch',
+    alias: 'config --get-regexp alias.'
+};
+
 const GIT_CONFIG_STORAGE_KEY = 'gwa_git_config_v1';
 const model = window.repoModel || {};
 
@@ -33,6 +56,23 @@ const commandCorrections = {
     'stashh': 'stash'
 };
 
+function resolveAliasTokens(args) {
+    const incoming = Array.isArray(args) ? args.slice() : [];
+    const aliasName = incoming[0];
+    if (!aliasName) return null;
+    const state = ensureGitState();
+    const configured = (state.config.local && state.config.local['alias.' + aliasName]) ||
+        (state.config.global && state.config.global['alias.' + aliasName]);
+    const expansion = configured || builtInGitAliases[aliasName];
+    if (!expansion) return null;
+    if (String(expansion).trim().startsWith('!')) {
+        return { error: 'error: shell aliases are not supported in Git Wizard Academy. Try a git-command alias like `git config --global alias.st status`.' };
+    }
+    const expanded = String(expansion).trim().split(/\s+/).filter(Boolean);
+    if (!expanded.length) return null;
+    return { alias: aliasName, tokens: expanded.concat(incoming.slice(1)) };
+}
+
 function suggestCommand(input) {
     const lower = input.toLowerCase();
     if (commandCorrections[lower]) {
@@ -40,7 +80,7 @@ function suggestCommand(input) {
     }
     
     // Find closest match
-    const allCommands = Object.keys(gitCommands).filter(k => k !== '_hash');
+    const allCommands = Object.keys(gitCommands).filter(k => k !== '_hash').concat(Object.keys(builtInGitAliases));
     const matches = allCommands.filter(cmd => {
         const dist = levenshteinDistance(lower, cmd);
         return dist <= 2;
@@ -1138,6 +1178,16 @@ gitCommands.config = function(args) {
         return { success: true, message: lines.join('\n'), isRaw: true, xp: 5 };
     }
 
+    if (args.includes('--get-regexp') && plainArgs[0]) {
+        const pattern = plainArgs[0].replace(/\.$/, '\.');
+        const re = new RegExp('^' + pattern);
+        const cfg = Object.assign({}, state.config.global, state.config.local);
+        const lines = Object.keys(cfg).sort()
+            .filter((key) => re.test(key))
+            .map((key) => key + ' ' + cfg[key]);
+        return { success: lines.length > 0, message: lines.join('\n'), isRaw: true, xp: lines.length ? 2 : 0 };
+    }
+
     if (get && plainArgs[0]) {
         const value = readConfigValue(state, plainArgs[0]);
         if (!value) return { success: false, message: '', xp: 0 };
@@ -1374,6 +1424,8 @@ gitCommands.add = function(args) {
 // Export typo detection for UI
 gitCommands.suggestCommand = suggestCommand;
 gitCommands.commandCorrections = commandCorrections;
+gitCommands.builtInAliases = builtInGitAliases;
+gitCommands.resolveAliasTokens = resolveAliasTokens;
 
 
 gitCommands.commit = function(args) {

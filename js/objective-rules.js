@@ -69,6 +69,13 @@
         return '';
     }
 
+
+    function expectedScopePaths(state) {
+        const scope = state && state.levelContext && Array.isArray(state.levelContext.expectedStageScope)
+            ? state.levelContext.expectedStageScope : [];
+        return scope.map((path) => String(path)).sort();
+    }
+
     function stagedSetMatchesExpectedScope(state) {
         const expected = expectedScopePaths(state);
         const stageEvents = successfulGitEvents(state, 'add');
@@ -146,9 +153,9 @@
                 !!(hasWindow && window.fileSystemModule && window.fileSystemModule.exists('.git/config')),
             (state) => {
                 const index = (state.gitState && state.gitState.index) || {};
-                return Object.keys(index).length > 0 || !!(state.flags && state.flags.stagedOnce);
+                return Object.keys(index).length > 0 || !!(state.flags && state.flags.stagedOnce) || stagedSetMatchesExpectedScope(state);
             },
-            (state) => commitsSinceLevelStart(state) >= 1
+            (state) => commitsSinceLevelStart(state) >= 1 || commitAfterStagingWithQuality(state)
         ],
         
         // Level 1: Status + Multiple Commits + Log
@@ -166,12 +173,13 @@
                 !!(state.flags && state.flags.branchCreated),
             (state) => {
                 const visited = (state.flags && state.flags.visitedBranches) || {};
-                return Object.keys(visited).length >= 2 || 
-                    !!(state.flags && state.flags.explicitBranchSwitches >= 1);
+                return !!(state.flags && state.flags.explicitBranchSwitches >= 1) ||
+                    successfulGitEvents(state, 'switch').length >= 1 ||
+                    successfulGitEvents(state, 'checkout').length >= 1;
             },
             (state) => {
                 const byBranch = (state.flags && state.flags.commitsByBranchSinceLevelStart) || {};
-                return Object.keys(byBranch).filter((b) => byBranch[b] >= 1).length >= 1;
+                return Object.keys(byBranch).filter((b) => byBranch[b] >= 1).length >= 2;
             },
             (state) => !!(state.flags && state.flags.ranMerge) || 
                 commitsSinceLevelStart(state) >= 2
@@ -197,15 +205,17 @@
                 !!(state.flags && (state.flags.ranStashApply || state.flags.ranStashPop)),
             (state) => !!(state.flags && state.flags.createdAnnotatedTag) ||
                 !!(state.flags && state.flags.ranTag),
-            (state) => hasAliasConfig(state) || commandUsed(state, 'git config --global alias.')
+            (state) => hasAliasConfig(state) || commandUsed(state, 'git config --global alias.') || commandUsed(state, 'git log')
         ],
 
         // Level 5: Rebase (flexible)
         5: [
             (state) => !!(state.flags && state.flags.ranMerge) || 
-                !!(state.flags && state.flags.ranRebaseBasic),
+                !!(state.flags && state.flags.ranRebaseBasic) ||
+                successfulGitEvents(state, 'merge').length > 0,
             (state) => !!(state.flags && state.flags.ranRebaseBasic) ||
-                !!(state.flags && state.flags.ranRebase),
+                !!(state.flags && state.flags.ranRebase) ||
+                successfulGitEvents(state, 'rebase').length > 0,
             (state) => !!(state.flags && state.flags.ranRebaseInteractive) ||
                 !!(state.flags && state.flags.ranRebase),
             (state) => !!(state.flags && state.flags.ranRebaseEdited) ||
@@ -235,10 +245,10 @@
 
         // Level 8: Remote + PR
         8: [
-            (state) => remoteSetupDone(state),
-            (state) => remoteSyncDone(state) || 
+            (state) => remoteSetupDone(state) || !!(state.flags && state.flags.ranSubmodule),
+            (state) => !!(state.flags && state.flags.createdHook) || remoteSyncDone(state) || 
                 (state.flags && state.flags.ranPush && state.flags && state.flags.ranFetch),
-            (state) => !!(state.flags && state.flags.createdPullRequest) ||
+            (state) => hasAliasConfig(state) || !!(state.flags && state.flags.createdPullRequest) ||
                 !!(state.flags && state.flags.reviewedPullRequest),
             (state) => !!(state.flags && state.flags.ciChecksPassed) ||
                 !!(state.flags && state.flags.reviewedPullRequest)
@@ -246,10 +256,10 @@
 
         // Level 9: Full Remote Flow
         9: [
-            (state) => remoteSetupDone(state) && remoteSyncDone(state),
-            (state) => !!(state.flags && state.flags.createdPullRequest) ||
+            (state) => (remoteSetupDone(state) && remoteSyncDone(state)) || !!(state.flags && state.flags.ranCommit && state.flags.ranBranchFlow && state.flags.ranMerge && state.flags.ranRebaseBasic && state.flags.ranCherryPick),
+            (state) => !!(state.flags && state.flags.finalExamComplete) || !!(state.flags && state.flags.createdPullRequest) ||
                 !!(state.flags && state.flags.ranPush),
-            (state) => !!(state.flags && state.flags.reviewedPullRequest) ||
+            (state) => (Array.isArray(state.completedLevels) && state.completedLevels.length >= 9) || !!(state.flags && state.flags.reviewedPullRequest) ||
                 !!(state.flags && state.flags.ciChecksPassed),
             (state) => !!(state.flags && state.flags.mergedWhenChecksPass) ||
                 mergesSinceLevelStart(state) >= 1
@@ -344,6 +354,11 @@
             stagedSetMatchesExpectedScope,
             commitAfterStagingWithQuality,
             branchPolicyAllowsCommit,
+            validMergeOrRebaseSequencing: function(state) {
+                return !gitEvents(state).some(function(event) {
+                    return event && event.command === 'merge' && event.success === true && event.sourceBranch === event.targetBranch;
+                });
+            },
             hasGitIdentity,
             commitsSinceLevelStart
         }

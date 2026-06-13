@@ -2,7 +2,18 @@ const assert = require('assert');
 const { createHarness } = require('./git-commands.fixtures.js');
 
 async function run() {
-  const simulated = createHarness();
+  const head = 'a'.repeat(40);
+  const simulated = createHarness({
+    files: { '.git/config': '[core]\nrepositoryformatversion = 0\n' },
+    gameState: {
+      commits: 1, merges: 0, conflicts: 0, branches: 1, flags: {},
+      gitState: {
+        branches: ['main'], currentBranch: 'main', refs: { main: head }, head: head,
+        commits: [{ sha: head, shortSha: head.slice(0, 7), parents: [], tree: {}, snapshot: {} }],
+        commitBySha: { [head]: { sha: head, shortSha: head.slice(0, 7), parents: [], tree: {}, snapshot: {} } }
+      }
+    }
+  });
 
   let res = await simulated.git.fetch([]);
   assert.strictEqual(res.success, true, 'simulated fetch should succeed');
