@@ -1155,19 +1155,30 @@ const ui = {
         
         // Handle git commands with better error handling
         if (cmd === 'git') {
-            const gitCmd = args[0];
+            let gitArgs = args.slice();
+            let gitCmd = gitArgs[0];
+            const aliasResolution = window.gitCommands.resolveAliasTokens
+                ? window.gitCommands.resolveAliasTokens(gitArgs)
+                : null;
+
+            if (aliasResolution && aliasResolution.error) {
+                result = { success: false, message: aliasResolution.error, xp: 0 };
+            } else if (aliasResolution && aliasResolution.tokens) {
+                gitArgs = aliasResolution.tokens;
+                gitCmd = gitArgs[0];
+            }
             
-            if (gitCmd === 'help' || gitCmd === '?' || gitCmd === '--help' || gitCmd === '-h') {
-                result = window.gitCommands.help(args.slice(1));
-            } else if (window.gitCommands[gitCmd]) {
-                result = window.gitCommands[gitCmd](args.slice(1));
-            } else if (gitCmd === undefined) {
+            if (!result && (gitCmd === 'help' || gitCmd === '?' || gitCmd === '--help' || gitCmd === '-h')) {
+                result = window.gitCommands.help(gitArgs.slice(1));
+            } else if (!result && window.gitCommands[gitCmd]) {
+                result = window.gitCommands[gitCmd](gitArgs.slice(1));
+            } else if (!result && gitCmd === undefined) {
                 result = { 
                     success: true, 
                     message: 'usage: git <command> [<args>]\n\nTry: git help', 
                     xp: 0 
                 };
-            } else {
+            } else if (!result) {
                 // Try to suggest corrections
                 const suggestion = window.gitCommands.suggestCommand(gitCmd);
                 const errorMessage = suggestion 

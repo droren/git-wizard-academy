@@ -40,6 +40,7 @@ currentLevel: 0,
         tierProgress: {},
         completedLevels: [],
         currentObjectives: [],
+        objectiveApprovedCommands: {},
     gitState: {
         branches: ['main'],
         currentBranch: 'main',
@@ -1214,6 +1215,10 @@ const gameEngine = {
         }
         
         window.gameState.currentObjectives = lesson.objectives ? [...lesson.objectives] : [];
+        window.gameState.objectiveApprovedCommands = window.gameState.objectiveApprovedCommands || {};
+        Object.keys(window.gameState.objectiveApprovedCommands).forEach(function(key) {
+            if (key.indexOf(levelIndex + ':') === 0) delete window.gameState.objectiveApprovedCommands[key];
+        });
         window.gameState.levelReadyToProceed = false;
         window.gameState.levelContext = {
             startCommitTotal: window.gameState.commits || 0,
@@ -1378,19 +1383,57 @@ const gameEngine = {
         
         return 'Try running `help` to see available commands, or `git help <command>` for details.';
     },
+    escapeHtml: function(str) {
+        return String(str || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    },
+
+    getLatestApprovedGitCommand: function() {
+        const events = Array.isArray(window.gameState.gitEventHistory) ? window.gameState.gitEventHistory : [];
+        for (let i = events.length - 1; i >= 0; i--) {
+            const event = events[i];
+            if (event && event.success === true && event.command) {
+                return 'git ' + event.command + (Array.isArray(event.args) && event.args.length ? ' ' + event.args.join(' ') : '');
+            }
+        }
+        const history = Array.isArray(window.gameState.commandHistory) ? window.gameState.commandHistory : [];
+        return history.length ? history[history.length - 1] : '';
+    },
+
+    flashObjectiveRow: function(index) {
+        const objList = document.getElementById('currentObjectiveList');
+        if (!objList) return;
+        const row = objList.querySelector('li[data-objective-index="' + index + '"]');
+        if (!row) return;
+        row.classList.remove('objective-approved-flash');
+        void row.offsetWidth;
+        row.classList.add('objective-approved-flash');
+    },
+
     // Render objectives for current level
     renderObjectives: function() {
         const lesson = window.lessons[window.gameState.currentLevel];
         const objList = document.getElementById('currentObjectiveList');
         if (!objList) return;
+        const approved = window.gameState.objectiveApprovedCommands || {};
         
         objList.innerHTML = '';
         lesson.objectives.forEach(function(obj, index) {
+            const complete = window.gameState.currentObjectives[index] === 'complete';
+            const key = window.gameState.currentLevel + ':' + index;
+            const approvedCommand = approved[key] || '';
             const li = document.createElement('li');
+            li.dataset.objectiveIndex = String(index);
+            if (complete) li.classList.add('objective-complete-row');
             li.innerHTML = '<div class="objective-checkbox ' + 
-                           (window.gameState.currentObjectives[index] === 'complete' ? 'complete' : '') + '">' + 
-                           (window.gameState.currentObjectives[index] === 'complete' ? '✓' : '') + 
-                           '</div><span>' + obj + '</span>';
+                           (complete ? 'complete' : '') + '">' + 
+                           (complete ? '✓' : '') + 
+                           '</div><span class="objective-text">' + obj + '</span>' +
+                           (approvedCommand ? '<code class="objective-approved-command">' + gameEngine.escapeHtml(approvedCommand) + '</code>' : '');
             objList.appendChild(li);
         });
         this.updateObjectivesPanelState();
@@ -1465,7 +1508,11 @@ const gameEngine = {
             
             if (complete) {
                 window.gameState.currentObjectives[index] = 'complete';
+                window.gameState.objectiveApprovedCommands = window.gameState.objectiveApprovedCommands || {};
+                const approvedKey = window.gameState.currentLevel + ':' + index;
+                window.gameState.objectiveApprovedCommands[approvedKey] = gameEngine.getLatestApprovedGitCommand();
                 gameEngine.renderObjectives();
+                gameEngine.flashObjectiveRow(index);
                 gameEngine.checkLevelComplete();
             }
         });

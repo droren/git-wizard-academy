@@ -23,7 +23,7 @@ function run() {
   assert.strictEqual(lessons.length, 10, 'expected 10 lessons');
   assert.deepStrictEqual(
     Array.from(tierNames),
-    ['Git Knight', 'Advanced Knight', 'Template Knight', 'Git Wizard', 'Grand Git Wizard'],
+    ['Must-Know', 'Good-to-Know', 'Template Knight', 'Git Wizard', 'Grand Git Wizard'],
     'expected five named tiers'
   );
 

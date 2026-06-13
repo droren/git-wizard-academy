@@ -82,6 +82,11 @@ function setupGitCommands() {
 function run() {
   const { gitCommands, window } = setupGitCommands();
 
+  assert.strictEqual(JSON.stringify(gitCommands.resolveAliasTokens(['st']).tokens), JSON.stringify(['status']), 'built-in st alias should expand to status');
+  assert.strictEqual(JSON.stringify(gitCommands.resolveAliasTokens(['ci', '-m', 'feat: alias commit']).tokens), JSON.stringify(['commit', '-m', 'feat: alias commit']), 'built-in ci alias should preserve arguments');
+  gitCommands.config(['--global', 'alias.hist', 'log --oneline']);
+  assert.strictEqual(JSON.stringify(gitCommands.resolveAliasTokens(['hist', '-3']).tokens), JSON.stringify(['log', '--oneline', '-3']), 'configured aliases should expand before extra args');
+
   const annotated = gitCommands.tag(['-a', 'v1.0.0', '-m', 'Release 1.0.0']);
   assert.strictEqual(annotated.success, true, 'annotated tag should succeed');
   assert.strictEqual(window.gameState.gitState.tags['v1.0.0'].annotated, true, 'annotated tag should be marked annotated');
