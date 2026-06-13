@@ -1,19 +1,12 @@
 const assert = require('assert');
-
-global.window = {
-  configStore: { load: () => ({}) },
-  fileSystemModule: {
-    readFile: () => null
-  }
-};
-
-const { evaluateObjective } = require('../js/objective-rules.js');
+const { evaluateObjective, validators } = require('../js/objective-rules.js');
 
 function baseState() {
   return {
     commits: 0,
     merges: 0,
     commandHistory: [],
+    gitEventHistory: [],
     completedLevels: [],
     flags: {},
     levelContext: {
@@ -50,8 +43,18 @@ function run() {
     s.flags.identityConfirmed = true;
     s.flags.repoInited = true;
     assert.strictEqual(evaluateObjective(0, 2, s), false);
-    s.flags.stagedOnce = true;
+    s.gitEventHistory.push({
+      command: 'add',
+      success: true,
+      stagedFilesAfter: ['README.md'],
+    });
     assert.strictEqual(evaluateObjective(0, 2, s), true);
+    s.gitEventHistory.push({
+      command: 'commit',
+      success: true,
+      commit: { messageQuality: 'acceptable' }
+    });
+    assert.strictEqual(evaluateObjective(0, 3, s), true);
   }
 
   // Level 2 bypass
@@ -133,9 +136,12 @@ function run() {
   // Level 6 rebase
   {
     const s = baseState();
-    s.flags.ranRebaseBasic = true;
-    s.flags.ranMerge = true;
+    s.gitEventHistory.push(
+      { command: 'merge', success: true, sourceBranch: 'feature/quest', targetBranch: 'main', branchBefore: 'main' },
+      { command: 'rebase', success: true, upstreamRef: 'main', targetBranch: 'feature/quest', branchBefore: 'feature/quest' }
+    );
     assert.strictEqual(evaluateObjective(5, 0, s), true);
+    s.flags.ranRebaseBasic = true;
     assert.strictEqual(evaluateObjective(5, 1, s), true);
     s.flags.ranRebaseInteractive = true;
     s.flags.ranRebaseEdited = true;
@@ -189,6 +195,59 @@ function run() {
     assert.strictEqual(evaluateObjective(9, 1, s), true);
     s.completedLevels = [0,1,2,3,4,5,6,7,8];
     assert.strictEqual(evaluateObjective(9, 2, s), true);
+  }
+
+  // Workflow-negative: wrong file staged for expected scope
+  {
+    const s = baseState();
+    s.levelContext.expectedStageScope = ['src/app.js'];
+    s.gitEventHistory.push({
+      command: 'add',
+      success: true,
+      stagedFilesAfter: ['README.md']
+    });
+    assert.strictEqual(validators.stagedSetMatchesExpectedScope(s), false);
+  }
+
+  // Workflow-negative: out-of-order commit (no prior stage)
+  {
+    const s = baseState();
+    s.gitEventHistory.push({
+      command: 'commit',
+      success: true,
+      commit: { messageQuality: 'acceptable' }
+    });
+    assert.strictEqual(validators.commitAfterStagingWithQuality(s), false);
+  }
+
+  // Workflow-negative: protected tier direct commit to main
+  {
+    const s = baseState();
+    s.levelContext.tierKey = 'advanced-knight';
+    s.gitEventHistory.push({
+      command: 'commit',
+      success: true,
+      branchAfter: 'main'
+    });
+    assert.strictEqual(validators.branchPolicyAllowsCommit(s), false);
+  }
+
+  // Workflow-negative: invalid transition sequencing
+  {
+    const s = baseState();
+    s.gitEventHistory.push({
+      command: 'merge',
+      success: true,
+      sourceBranch: 'main',
+      targetBranch: 'main'
+    });
+    s.gitEventHistory.push({
+      command: 'rebase',
+      success: true,
+      upstreamRef: 'feature',
+      targetBranch: 'feature'
+    });
+    assert.strictEqual(validators.validMergeOrRebaseSequencing(s), false);
   }
 
   console.log('objective-rules: all tests passed');
