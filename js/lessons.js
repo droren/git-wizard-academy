@@ -1,8 +1,67 @@
 // js/lessons.js
 /**
  * Lesson Content for Git Wizard Academy
- * Tiered 10-level curriculum with explicit capstones
+ * All levels and objectives
  */
+
+const lessons = [
+    {
+        id: 0,
+        title: "Level 1: Novice Initiate",
+        icon: "🌱",
+        iconClass: "novice",
+        xpReward: 100,
+        titleName: "Novice Initiate",
+        description: "Your journey begins here",
+        objectives: [
+            "Configure your git identity (name and email)",
+            "Initialize a new repository",
+            "Create your first file and stage it",
+            "Make your first commit"
+        ],
+        content: `
+            <h2>🌱 Welcome, Young Apprentice!</h2>
+            <p>Git is a powerful <strong>Version Control System</strong> that tracks changes in your code. Think of it as a time machine for your files!</p>
+            <p>Your home directory is your personal camp. Your repositories live in project folders inside <code>~/projects/</code>, and your hidden <code>.gitconfig</code> stays in home where <code>ls -al</code> can reveal it.</p>
+            
+            <h3>What You'll Learn</h3>
+            <ul>
+                <li><code>git config</code> - Set up your identity</li>
+                <li><code>git init</code> - Start a new repository</li>
+                <li><code>echo</code> - Create files with content</li>
+                <li><code>ls</code> - List files in directory</li>
+                <li><code>cat</code> - Display file contents</li>
+                <li><code>git add</code> - Stage files for commit</li>
+                <li><code>git commit</code> - Save your changes permanently</li>
+            </ul>
+
+            <div class="tip-box">
+                💡 <strong>Pro Tip:</strong> Git takes "snapshots" of your project, not just differences!
+            </div>
+
+            <h3>Setting Up Your Identity</h3>
+            <pre><code>git config --global user.name "Your Name"
+git config --global user.email "your@email.com"</code></pre>
+            <p>This lesson wants you to set identity through Git itself. Later, <code>ls -al</code> in your home directory will show the hidden <code>.gitconfig</code> file that stores those global settings.</p>
+
+            <h3>Working in a Project Folder</h3>
+            <pre><code>pwd
+cd ~/projects/level-1
+ls -al</code></pre>
+
+            <h3>Creating Your First Repo</h3>
+            <pre><code>git init</code></pre>
+
+            <h3>Creating Files</h3>
+            <pre><code>echo "Hello World" > hello.txt
+echo "My Project" > README.md
+ls              # List files
+cat hello.txt    # Show file content</code></pre>
+
+            <h3>Seeing Hidden Files</h3>
+            <pre><code>ls -a
+ls -la</code></pre>
+            <p>Use this when you want to inspect hidden files such as <code>.git</code>, <code>.gitignore</code>, or your course-wide <code>.gitconfig</code>.</p>
 
 const lessons = [
     {
@@ -118,6 +177,52 @@ git commit -m "docs: update main notes"</code></pre>
     },
     {
         id: 3,
+        title: "Level 4: Merge Conflict Boss",
+        icon: "⚔️",
+        iconClass: "battlefield",
+        xpReward: 250,
+        titleName: "Merge Conflict Boss",
+        description: "Defeat the Goblin King of conflicting timelines",
+        objectives: [
+            "Create a merge conflict",
+            "Identify conflict markers",
+            "Resolve the merge manually in nano",
+            "Complete the merge after the conflict is fixed"
+        ],
+        content: `
+            <h2>⚔️ The Merge Conflict Boss Awakens</h2>
+            <p>Conflicts happen when two people edit the same part of a file. This is the first real boss fight: you will face a split timeline, read the markers, and resolve it by hand.</p>
+
+            <h3>How Conflicts Arise</h3>
+            <p>When the same file is edited on different branches and you try to merge them.</p>
+
+            <h3>Conflict Markers Look Like This:</h3>
+            <pre><code>&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD
+Your changes here
+Their changes here
+&gt;&gt;&gt;&gt;&gt;&gt;&gt; branch-name</code></pre>
+
+            <h3>Resolving Conflicts</h3>
+            <ol>
+                <li>Open the file and decide which changes to keep</li>
+                <li>Remove the conflict markers</li>
+                <li>Leave the resolved line as <code>const mode = "merged"; console.log(mode + " timeline");</code></li>
+                <li>Stage the resolved file</li>
+                <li>Commit the merge</li>
+            </ol>
+
+            <pre><code>git add app.js
+git commit -m "Resolve merge conflict"</code></pre>
+
+            <div class="objective-box">
+                <div class="objective-header">
+                    <span class="objective-icon">🎯</span>
+                    <span class="objective-title">Your Objectives</span>
+                </div>
+                <ul class="objective-list" id="objectiveList">
+                </ul>
+            </div>
+        `,
         title: "Level 4: Good-to-Know Capstone",
         icon: "⚔️",
         iconClass: "good-to-know",
@@ -155,11 +260,13 @@ git commit -m "merge: resolve feature conflict"</code></pre>
         },
         conflictScenario: true,
         boss: {
-            name: 'Captain Mira Rift',
-            avatar: '🧙‍♂️',
+            name: "Merge Conflict Goblin King",
+            avatar: "👹",
+            sprite: "mergegoblin",
             hp: 100,
-            dialogue: 'A wizard who cannot resolve conflicts cannot lead a team timeline.',
-            hint: 'Inspect markers, edit file, stage resolution, and commit merge.'
+            dialogue: "Two timelines are mine to twist! Remove my markers, forge the merged line, and prove your repository still has a future!",
+            hint: "Use nano to replace the conflict with: const mode = \"merged\"; console.log(mode + \" timeline\");",
+            timerSeconds: 45
         }
     },
     {

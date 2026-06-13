@@ -4,6 +4,12 @@
  * Basic Unix-like shell commands
  */
 
+function playShellCue(name) {
+    if (window.Assets && window.Assets.playSound) {
+        window.Assets.playSound(name);
+    }
+}
+
 const shellCommands = {
     help: function(args) {
         return {
@@ -60,11 +66,21 @@ const shellCommands = {
         const all = args.includes('-a') || args.includes('--all') || shortFlags.includes('a');
         const fs = window.fileSystemModule;
         
-        // Determine path - . means current directory
+        // Determine path - first non-flag argument wins
         let path = '.';
-        const lastArg = args[args.length - 1];
-        if (lastArg && !lastArg.startsWith('-')) {
-            path = lastArg;
+        const nonFlags = args.filter(arg => !arg.startsWith('-'));
+        if (nonFlags.length) {
+            path = nonFlags[0];
+        }
+
+        if (fs.exists(path) && !fs.isDirectory(path)) {
+            const name = path.split('/').filter(Boolean).pop() || path;
+            playShellCue('click');
+            return {
+                success: true,
+                message: long ? `-rw-r--r--  1  user  group  128  today  ${name}` : name,
+                isRaw: !long
+            };
         }
         
         const items = fs.listDirectory(path);
@@ -85,6 +101,7 @@ const shellCommands = {
                 const date = item.modified ? new Date(item.modified).toLocaleDateString() : 'today';
                 output += `${perms}  1  user  group  128  ${date}  ${item.name}${item.type === 'directory' ? '/' : ''}\n`;
             });
+            playShellCue('click');
             return { success: true, message: output };
         }
         
@@ -92,16 +109,19 @@ const shellCommands = {
             const name = item.name;
             return item.type === 'directory' ? '\x1b[34m' + name + '/\x1b[0m' : name;
         }).join('  ');
+        playShellCue('click');
         
         return { success: true, message: output, isRaw: true };
     },
     
     cd: function(args) {
-        const path = args[0] || '/';
         const fs = window.fileSystemModule;
+        const homePath = fs && fs.getHomePath ? fs.getHomePath() : '/home/gitwizard';
+        const path = args[0] || homePath;
         
         if (path === '~' || path === '$HOME') {
-            fs.setCurrentPath('/');
+            fs.setCurrentPath(homePath);
+            playShellCue('switch');
             return { success: true, message: '' };
         }
         
@@ -111,6 +131,7 @@ const shellCommands = {
                 pathHistory.pop();
                 fs.setCurrentPath(pathHistory[pathHistory.length - 1]);
             }
+            playShellCue('switch');
             return { success: true, message: '' };
         }
         
@@ -129,6 +150,7 @@ const shellCommands = {
         fs.setCurrentPath(newPath);
         
         fs._pathHistory.push(fs.getCurrentPath());
+        playShellCue('switch');
         
         return { success: true, message: '' };
     },
@@ -157,12 +179,12 @@ const shellCommands = {
                 });
             } else {
                 const file = fs.readFile(path);
-                if (file) {
-                    output += file.content + (args.length > 1 ? '\n\n' : '');
-                    if (file.content.includes('<<<<<<<') || file.content.includes('=======') || file.content.includes('>>>>>>>')) {
-                        window.gameState.flags = window.gameState.flags || {};
-                        window.gameState.flags.conflictMarkersIdentified = true;
-                    }
+            if (file) {
+                output += file.content + (args.length > 1 ? '\n\n' : '');
+                if (file.content.includes('<<<<<<<') || file.content.includes('=======') || file.content.includes('>>>>>>>')) {
+                    window.gameState.flags = window.gameState.flags || {};
+                    window.gameState.flags.conflictMarkersIdentified = true;
+                }
                 } else {
                     output += `cat: ${path}: No such file or directory\n`;
                 }
@@ -191,6 +213,7 @@ const shellCommands = {
             if (filename.includes('.git/hooks')) {
                 window.gameState.flags.createdHook = true;
             }
+            playShellCue('click');
             return { success: true, message: '' };
         }
         
@@ -209,6 +232,7 @@ const shellCommands = {
                 fs.createDirectory(path);
             }
         });
+        playShellCue('click');
         
         return { success: true, message: '' };
     },

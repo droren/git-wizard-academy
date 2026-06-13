@@ -10,14 +10,15 @@
 
 (function(){
   const STORAGE_KEY = "gwa_fileSystem_v1";
+  const HOME_DIR = "/home/gitwizard";
 
   // In-memory FS tree
   let fileSystem = {
     "/": { type: "directory", children: {} }
   };
 
-  let currentPath = "/";
-  const pathHistory = ["/"];
+  let currentPath = HOME_DIR;
+  const pathHistory = [HOME_DIR];
 
   function deepClone(obj){
     return JSON.parse(JSON.stringify(obj));
@@ -26,7 +27,9 @@
   function normalizePath(path){
     if(!path) return currentPath;
     if(path === "." ) return currentPath;
-    if(path === "~" || path === "$HOME") return "/";
+    if(path === "~" || path === "$HOME") return HOME_DIR;
+    if(path.startsWith("~/")) return HOME_DIR + path.slice(1);
+    if(path.startsWith("$HOME/")) return HOME_DIR + path.slice(5);
     // If absolute
     if(path.startsWith("/")) return path;
     // Relative -> join
@@ -89,9 +92,11 @@
       const payload = JSON.parse(raw);
       if(payload?.fs?.["/"]?.type === "directory"){
         fileSystem = payload.fs;
-        currentPath = payload.cwd || "/";
+        currentPath = payload.cwd || HOME_DIR;
+        if (currentPath === "/") currentPath = HOME_DIR;
         pathHistory.length = 0;
-        (payload.history || ["/"]).forEach(p => pathHistory.push(p));
+        (payload.history || [HOME_DIR]).forEach(p => pathHistory.push(p === "/" ? HOME_DIR : p));
+        if (!pathHistory.length) pathHistory.push(HOME_DIR);
       }
     }catch(e){
       // ignore parse errors
@@ -109,9 +114,10 @@
     import: (snapshot) => {
       if(snapshot?.fs?.["/"]?.type === "directory"){
         fileSystem = snapshot.fs;
-        currentPath = snapshot.cwd || "/";
+        currentPath = snapshot.cwd || HOME_DIR;
+        if (currentPath === "/") currentPath = HOME_DIR;
         pathHistory.length = 0;
-        (snapshot.history || ["/"]).forEach(p => pathHistory.push(p));
+        (snapshot.history || [HOME_DIR]).forEach(p => pathHistory.push(p === "/" ? HOME_DIR : p));
         saveFS();
         return true;
       }
@@ -212,13 +218,20 @@
 
     reset: () => {
       fileSystem = { "/": { type:"directory", children:{} } };
-      currentPath = "/";
+      ensureDir(HOME_DIR);
+      ensureDir(HOME_DIR + "/projects");
+      currentPath = HOME_DIR;
       pathHistory.length = 0;
-      pathHistory.push("/");
+      pathHistory.push(HOME_DIR);
       saveFS();
     },
 
     // expose history for cd -
     _pathHistory: pathHistory,
+    getHomePath: () => HOME_DIR,
   };
+
+  ensureDir(HOME_DIR);
+  ensureDir(HOME_DIR + "/projects");
+  if (!currentPath) currentPath = HOME_DIR;
 })();

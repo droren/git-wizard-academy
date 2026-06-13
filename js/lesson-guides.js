@@ -7,12 +7,15 @@
     const demos = {
         0: {
             title: 'Initiate the Timeline',
-            subtitle: 'Configure identity, initialize repo, stage, and commit.',
+            subtitle: 'Set identity in Git, step into your project folder, then initialize, stage, and commit.',
             steps: [
+                { cmd: 'pwd', out: '/home/gitwizard' },
+                { cmd: 'ls -al', out: '.gitconfig  projects/' },
+                { cmd: 'cd ~/projects/level-1', out: '' },
                 { cmd: 'git config --global user.name "Arc Hero"', out: '' },
                 { cmd: 'git config --global user.email "hero@academy.dev"', out: '' },
                 { cmd: 'git init', out: 'Initialized empty Git repository in .git/' },
-                { cmd: 'ls -a', out: '.git/  .gitconfig  .gitignore  README.md' },
+                { cmd: 'ls -a', out: '.git/  .gitignore  README.md' },
                 { cmd: 'echo "Hello World" > hello.txt', out: '' },
                 { cmd: 'git add hello.txt', out: 'Added 1 file(s)' },
                 { cmd: 'git commit -m "First commit"', out: '[main abc1234] First commit' }
@@ -45,14 +48,14 @@
             ]
         },
         3: {
-            title: 'Merge Monster Drill',
-            subtitle: 'Prepared branches are already diverged. Inspect history, merge, and resolve manually.',
+            title: 'Merge Conflict Boss',
+            subtitle: 'Prepared branches are already diverged. Inspect history, merge, then resolve the Goblin King by hand.',
             steps: [
                 { cmd: 'git branch', out: '* main\n  feature' },
                 { cmd: 'git log --oneline', out: '... pre-diverged history on main and feature ...' },
                 { cmd: 'git merge feature', out: 'CONFLICT (content): Merge conflict in app.js' },
                 { cmd: 'cat app.js', out: '<<<<<<< main\n...\n=======\n...\n>>>>>>> feature' },
-                { cmd: 'nano app.js', out: 'Edit manually: remove markers and keep intended code.' },
+                { cmd: 'nano app.js', out: 'Edit manually: keep const mode = "merged"; console.log(mode + " timeline");' },
                 { cmd: 'git add app.js && git commit -m "Resolve merge conflict"', out: '[main 1234abc] Resolve merge conflict' }
             ]
         },
