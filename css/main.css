@@ -281,7 +281,7 @@ body.glitch {
 }
 
 .intro-crawl.animating .intro-crawl-inner {
-    animation: crawlRise 24s linear forwards;
+    animation: crawlRise 18s linear forwards;
 }
 
 .intro-crawl.animating {
@@ -428,10 +428,21 @@ body.glitch {
 }
 
 @keyframes crawlRise {
-    0% {
+     0% {
         transform: translateX(-50%) rotateX(22deg) translateY(0);
         opacity: 1;
-    }
+     }
+     80% {
+        opacity: 1;
+     }
+     100% {
+        /* Keep the text on screen long enough to read, then fade in the final
+           20%. The finale now appears on this element's animationend, so there
+           is no empty gap before "ready to play". */
+        transform: translateX(-50%) rotateX(22deg) translateY(-120vh);
+        opacity: 0;
+     }
+}
     85% {
         opacity: 1;
     }
@@ -3341,4 +3352,31 @@ body {
     0% { background: rgba(46, 160, 67, 0.42); box-shadow: 0 0 0 rgba(46, 160, 67, 0); }
     45% { background: rgba(46, 160, 67, 0.28); box-shadow: 0 0 22px rgba(46, 160, 67, 0.45); }
     100% { background: rgba(46, 160, 67, 0.08); box-shadow: 0 0 0 rgba(46, 160, 67, 0); }
+}
+
+/* --- Guide readability fix (appended; wins by document order) ---------------
+   The level guide previously had no height cap, so a long story beat or terminal
+   overflowed the fixed full-viewport overlay and the bottom got clipped off-screen
+   ("the guide is not even fully readable"). Cap the modal to the viewport and let
+   the story beat and terminal scroll internally so every line stays readable. */
+.guide-overlay.show { overflow: auto; }
+.guide-overlay .guide-modal {
+    max-height: calc(100vh - 32px);
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    overflow: visible;
+}
+.guide-overlay .guide-storybeat {
+    flex: 0 0 auto;
+    max-height: 220px;
+    overflow: auto;
+}
+.guide-overlay .guide-terminal {
+    flex: 1 1 auto;
+    min-height: 160px;
+    max-height: 46vh;
+}
+.guide-overlay .guide-header {
+    flex: 0 0 auto;
 }

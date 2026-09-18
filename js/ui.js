@@ -5,7 +5,7 @@
  */
 
 const ui = {
-    introCrawlDurationMs: 22000,
+    introCrawlDurationMs: 18000,
     // Command history
     commandHistory: [],
     historyIndex: -1,
@@ -22,6 +22,7 @@ const ui = {
     introMusicRetryBound: null,
     bootTimer: null,
     introReadyToStart: false,
+    introFinaleDone: false,
     pendingGuideLevel: null,
     guidePlayState: { playing: false, step: 0, line: 0, steps: [] },
     resolverState: { file: '', ours: '', theirs: '', both: '', choice: 'both' },
@@ -691,6 +692,7 @@ const ui = {
 
         this.setAppShellVisible(false);
         this.introReadyToStart = false;
+        this.introFinaleDone = false;
         body.classList.add('booting');
         body.classList.remove('intro-mode');
         overlay.classList.remove('hidden');
@@ -793,17 +795,27 @@ const ui = {
         overlay.offsetHeight;
         crawl.classList.add('animating');
         if (this.introCloseTimer) clearTimeout(this.introCloseTimer);
-        this.introCloseTimer = setTimeout(this.handleIntroFinale.bind(this), this.introCrawlDurationMs);
+        // The ready-to-play finale must appear the moment the scrolling text
+        // finishes, not on a timer out of sync with the CSS animation (which left a
+        // ~10s empty gap before the button). animationend is the source of truth;
+        // the timer is a long safety fallback in case the browser never fires it.
+        const inner = crawl.querySelector('.intro-crawl-inner') || crawl;
+        const finaleHandler = function() { this.handleIntroFinale(); }.bind(this);
+        inner.addEventListener('animationend', finaleHandler, { once: true });
+        this.introFinaleFallback = setTimeout(finaleHandler, this.introCrawlDurationMs + 4000);
+        this.introCloseTimer = this.introFinaleFallback;
     },
 
     handleIntroFinale: function() {
-        const finale = document.getElementById('introFinale');
-        const crawl = document.getElementById('introCrawl');
-        const overlay = document.getElementById('introOverlay');
-        if (this.introCloseTimer) {
-            clearTimeout(this.introCloseTimer);
-            this.introCloseTimer = null;
-        }
+    if (this.introFinaleDone) return;
+    this.introFinaleDone = true;
+    // clear both the animationend fallback timer and the (legacy) introCloseTimer
+    if (this.introFinaleFallback) clearTimeout(this.introFinaleFallback);
+    if (this.introCloseTimer) { clearTimeout(this.introCloseTimer); this.introCloseTimer = null; }
+    this.introFinaleFallback = null;
+    const finale = document.getElementById('introFinale');
+    const crawl = document.getElementById('introCrawl');
+    const overlay = document.getElementById('introOverlay');
         this.introReadyToStart = true;
         if (crawl) crawl.classList.remove('animating');
         if (overlay) overlay.classList.add('finale-mode');
@@ -1071,6 +1083,24 @@ const ui = {
             toast.classList.remove('show');
         }, 2600);
     },
+
+     showCommitCoach: function(kind, text) {
+        if (!text) return;
+          // A dedicated floating coach message shown on commit so the player learns good
+           // habits without being blocked for a weak message.
+         const kind2 = String(kind || 'general');
+         const toast = document.getElementById('hintToast');
+         if (!toast) return;
+         toast.textContent = text;
+         if (toast.dataset) toast.dataset.coachKind = kind2;
+          toast.classList.add('show', 'coach-' + kind2);
+         if (this.hintTimer) clearTimeout(this.hintTimer);
+          // Give the message breathing room so players can read the reason fully.
+         const ttl = (kind2 === 'empty') ? 5200 : 4200;
+          this.hintTimer = setTimeout(function() {
+             toast.classList.remove('show');
+              }, ttl);
+        },
 
     getContextualHint: function(input, result, state) {
         const currentLevel = state.currentLevel || 0;

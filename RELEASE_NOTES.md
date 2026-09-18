@@ -1,5 +1,28 @@
 # Release Notes
 
+## 2026-09-18 - Commit UX, Guide Readability, and Intro Timing
+
+### Fixed
+
+- Recovered `js/git-commands.js`, which had two missing `}` braces (in `reactCharacter` and a
+  detached-`checkout` `if` block) left by a bad merge. The module failed to load and forced a hard
+  15-character commit-message gate.
+- `git commit -m "..."` now accepts any non-empty message, just like real Git. A blank or
+  punctuation-only message is the only hard failure.
+- Empty commit messages now surface a floating coaching reason instead of just an error sound.
+- Level briefings no longer clip off-screen: the guide modal is viewport-capped with internally
+  scrolling story-and-terminal panes.
+- The intro crawl no longer vanishes ~10s before "ready to play"; the finale is tied to the
+  crawl's `animationend` and the scroll holds opacity long enough to read.
+
+### Added
+
+- `validateCommitMessage` returns a `quality` of `good` / `short` / `empty`; the first commit gets a
+  special welcome and a short-but-valid commit gets a gentle conventional-style hint.
+- `ui.showCommitCoach` and `fireCommitCoach` surface the reason (or a hint) on commit.
+- New regression tests: `tests/commit-any-message.test.js`, `tests/level-1-playthrough.test.js`,
+  `tests/boot-smoke.test.js`; `tests/git-commit-validation.test.js` updated to the lenient behavior.
+
 ## 2026-04-10 - Live GitHub Mode Foundation
 
 ### Added

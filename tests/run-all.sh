@@ -18,6 +18,14 @@ node --check js/export-repo.js
 node --check js/export-bridge-server.js
 node --check js/live-github-server.js
 node --check js/live-github-client.js
+node --check js/achievements.js
+node --check js/file-system.js
+node --check js/repo-model.js
+node --check js/shell-commands.js
+node --check js/intro-sprite-showcase.js
+node --check js/test-bridge.js
+node --check js/export-bridge-client.js
+node --check export-bridge.js
 node --check live-github.js
 node tests/objective-rules.test.js
 node tests/git-config.test.js
@@ -42,5 +50,8 @@ node tests/git-rebase-rewrite.test.js
 node tests/git-remote-transitions.test.js
 node tests/detached-head.test.js
 node tests/git-commands.test.js
+node tests/boot-smoke.test.js
+node tests/level-1-playthrough.test.js
+node tests/commit-any-message.test.js
 
 echo "all checks passed"

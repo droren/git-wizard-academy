@@ -883,6 +883,14 @@ const gameEngine = {
         if (!window.gameState.completedLevelRuns || typeof window.gameState.completedLevelRuns !== 'object') window.gameState.completedLevelRuns = {};
         if (!window.gameState.tierProgress || typeof window.gameState.tierProgress !== 'object') window.gameState.tierProgress = {};
         if (!Array.isArray(window.gameState.commandHistory)) window.gameState.commandHistory = [];
+        if (!window.gameState.progressTracking || typeof window.gameState.progressTracking !== 'object') {
+            window.gameState.progressTracking = {
+                levelStartTime: null,
+                lastCommandTime: null,
+                commandsInCurrentLevel: 0,
+                stuckWarningShown: false
+             };
+         }
         if (!window.gameState.flags) window.gameState.flags = {};
         if (typeof window.gameState.flags.identityConfirmed !== 'boolean') window.gameState.flags.identityConfirmed = false;
         if (typeof window.gameState.flags.configuredIdentity !== 'boolean') window.gameState.flags.configuredIdentity = false;
@@ -1079,10 +1087,10 @@ const gameEngine = {
         this.logDevEvent('level.load', { levelIndex: levelIndex, title: lesson.title });
 
         // Reset progress tracking for new level
-        this.progressTracking.levelStartTime = Date.now();
-        this.progressTracking.lastCommandTime = Date.now();
-        this.progressTracking.commandsInCurrentLevel = 0;
-        this.progressTracking.stuckWarningShown = false;
+        window.gameState.progressTracking.levelStartTime = Date.now();
+        window.gameState.progressTracking.lastCommandTime = Date.now();
+        window.gameState.progressTracking.commandsInCurrentLevel = 0;
+        window.gameState.progressTracking.stuckWarningShown = false;
         
         if (this._bossIntroTimer) {
             clearTimeout(this._bossIntroTimer);
@@ -1486,9 +1494,9 @@ const gameEngine = {
     },    
 
     recordCommand: function() {
-        this.progressTracking.lastCommandTime = Date.now();
-        this.progressTracking.commandsInCurrentLevel++;
-        this.progressTracking.stuckWarningShown = false; // Reset on new command
+        window.gameState.progressTracking.lastCommandTime = Date.now();
+        window.gameState.progressTracking.commandsInCurrentLevel++;
+        window.gameState.progressTracking.stuckWarningShown = false; // Reset on new command
         
         // Reset stuck timer
         if (this.stuckTimer) clearTimeout(this.stuckTimer);
@@ -1500,8 +1508,8 @@ const gameEngine = {
     // NEW: Check if user is stuck and provide help
     checkIfUserIsStuck: function() {
         const now = Date.now();
-        const timeSinceLastCommand = now - this.progressTracking.lastCommandTime;
-        const timeInLevel = now - this.progressTracking.levelStartTime;
+        const timeSinceLastCommand = now - window.gameState.progressTracking.lastCommandTime;
+        const timeInLevel = now - window.gameState.progressTracking.levelStartTime;
         
         // Only check if user has been in level for at least 3 minutes
         if (timeInLevel < 180000) return;
@@ -1511,8 +1519,8 @@ const gameEngine = {
         if (allComplete) return;
         
         // If no commands in last 5 minutes, show help
-        if (timeSinceLastCommand > 300000 && !this.progressTracking.stuckWarningShown) {
-            this.progressTracking.stuckWarningShown = true;
+        if (timeSinceLastCommand > 300000 && !window.gameState.progressTracking.stuckWarningShown) {
+            window.gameState.progressTracking.stuckWarningShown = true;
             
             const hint = this.getStuckHint();
             if (hint) {

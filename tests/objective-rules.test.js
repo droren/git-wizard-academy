@@ -1,4 +1,7 @@
 const assert = require('assert');
+// Bootstrap a minimal `window` so objective-rules.js (a browser IIFE) can be
+// required under Node without ReferenceError and so readWorkingFile resolves.
+global.window = global.window || {};
 const { evaluateObjective, validators } = require('../js/objective-rules.js');
 
 function baseState() {

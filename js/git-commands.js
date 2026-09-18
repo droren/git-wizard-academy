@@ -42,6 +42,7 @@ function reactCharacter(eventName, payload) {
     if (window.characterSystem && window.characterSystem.reactToEvent) {
         window.characterSystem.reactToEvent(eventName, payload);
     }
+}
 // Common typos and their corrections
 const commandCorrections = {
     'inint': 'init',
@@ -398,8 +399,8 @@ function buildGitEvent(command, args, before, result) {
         const quality = validateCommitMessage(commitMessage);
         event.commit = {
             message: commitMessage,
-            messageQuality: quality.ok ? 'acceptable' : 'rejected',
-            qualityReason: quality.ok ? '' : quality.reason
+            messageQuality: (quality && quality.quality === 'good') ? 'good' : (quality && quality.ok) ? 'acceptable' : 'rejected',
+            qualityReason: (quality && quality.ok) ? '' : ((quality && quality.reason) || 'empty commit message')
         };
     }
 
@@ -507,7 +508,10 @@ function readConfigValue(state, key) {
 
 function parseCommitMessage(args) {
     const mIdx = args.indexOf('-m');
-    if (mIdx !== -1 && args[mIdx + 1]) return args[mIdx + 1];
+      // When the player explicitly passes -m, keep exactly what they gave us, even if it
+       // is empty or whitespace, so a missing message surfaces a real rejection reason
+        // instead of silently becoming "Update". With no -m at all, default to "Update".
+    if (mIdx !== -1) return args[mIdx + 1] == null ? '' : String(args[mIdx + 1]);
     return 'Update';
 }
 
@@ -517,8 +521,58 @@ function logDev(event, data) {
     }
 }
 
+function conventionalCommitRegex() {
+    return /^(feat|fix|docs|chore|refactor|test|ci|style|perf|build|revert)(\([\w .+-]+\))?:\s+.+/;
+}
+
+function validateCommitMessage(msg) {
+    const text = String(msg == null ? '' : msg).trim();
+     // An empty or punctuation-only message is the only hard failure.
+     // Every non-empty message is accepted, just like real Git where
+     // `git commit -m "anything"` always works. Weak messages are *coached*
+     // (a floating hint), not blocked, so the player never hears "I need the exact command".
+    if (text.length === 0 || /^[\p{P}\p{S}]+$/u.test(text)) {
+        return {
+             ok: false,
+             quality: 'empty',
+             conventional: false,
+             words: 0,
+             reason: 'You did not write a commit message yet. Try: git commit -m "feat: first commit"'
+            };
+        }
+    const conventional = conventionalCommitRegex().test(text);
+    const words = text.split(/\s+/).filter(Boolean).length;
+     // "good" = descriptive: a conventional prefix and/or enough words to explain.
+    const good = conventional || words >= 3;
+    return {
+         ok: true,
+         quality: good ? 'good' : 'short',
+         conventional: !!conventional,
+         words: words,
+         reason: good
+                ? ''
+                : 'Committed. Tip: a descriptive message like "feat: add the login flow" beats a one-word message.'
+        };
+}
+
 function isValidCommitMessage(msg) {
-    return !!(msg && String(msg).trim().length >= 15 && String(msg).includes(' '));
+    return validateCommitMessage(msg).ok;
+}
+
+// A short, friendly floating coaching message that appears when a commit is
+// made so the player learns good habits WITHOUT being blocked. It prefers a
+// richer coach toast (showCommitCoach) and falls back to the generic hint toast.
+function fireCommitCoach(kind, text) {
+    window.gameState = window.gameState || {};
+    window.gameState.lastCommitCoach = { kind: String(kind || 'general'), text: String(text || ''), at: Date.now() };
+    if (window.Effects && window.Effects.sparkle) {
+        try { window.Effects.sparkle(); } catch (e) {}
+     }
+    if (window.ui && typeof window.ui.showCommitCoach === 'function') {
+        window.ui.showCommitCoach(kind, String(text || ''));
+        } else if (window.ui && typeof window.ui.showHintToast === 'function') {
+        window.ui.showHintToast(String(text || ''));
+        }
 }
 
 function getHookPath(name) {
@@ -1490,15 +1544,9 @@ gitCommands.commit = function(args) {
     }
     const commitMessage = parseCommitMessage(args);
     const normalizedMessage = String(commitMessage || '').trim();
-    if (!isValidCommitMessage(normalizedMessage)) {
-        window.gameState.flags = window.gameState.flags || {};
-        window.gameState.flags.commitMessageRejected = true;
-        playGitCue('error');
-        if (window.Effects && window.Effects.glitch) window.Effects.glitch();
-        reactCharacter('commit-rejected', { reason: 'message-validation' });
-        return { success: false, message: 'error: commit message is too short. Write a more descriptive message.', xp: 0 };
-    }
 
+         // Hooks are authoritative first: with a pre-commit / commit-msg hook installed,
+          // run them BEFORE the length gate so the real, informative reason is surfaced.
     const preCommitCheck = preCommitHookAllows(state);
     if (!preCommitCheck.ok) {
         window.gameState.flags = window.gameState.flags || {};
@@ -1507,7 +1555,7 @@ gitCommands.commit = function(args) {
         if (window.Effects && window.Effects.glitch) window.Effects.glitch();
         reactCharacter('lint-fail', { reason: 'pre-commit-hook' });
         return { success: false, message: preCommitCheck.reason, xp: 0 };
-    }
+        }
 
     const msgHookCheck = commitMsgHookAllows(commitMessage);
     if (!msgHookCheck.ok) {
@@ -1517,11 +1565,28 @@ gitCommands.commit = function(args) {
         if (window.Effects && window.Effects.glitch) window.Effects.glitch();
         reactCharacter('lint-fail', { reason: 'commit-msg-hook' });
         return { success: false, message: msgHookCheck.reason, xp: 0 };
-    }
+        }
 
+    const messageQuality = validateCommitMessage(normalizedMessage);
+         // The only hard length failure is a truly empty / punctuation-only message, and even
+          // then we surface the reason as a floating coach message so the player learns why.
+    if (!messageQuality.ok) {
+        window.gameState.flags = window.gameState.flags || {};
+        window.gameState.flags.commitMessageRejected = true;
+        playGitCue('error');
+        if (window.Effects && window.Effects.glitch) window.Effects.glitch();
+        reactCharacter('commit-rejected', { reason: 'empty-message' });
+        fireCommitCoach('empty', messageQuality.reason || 'You need a commit message. Try: git commit -m "feat: first commit"');
+        return { success: false, message: messageQuality.reason || 'error: you did not provide a commit message.', xp: 0 };
+        }
+
+         // The very first commit in a repo gets a special welcome, because in real Git it is
+          // just "I started the project". Later commits carry more convention weight.
+    const headBeforeCommit = getHeadSha(state);
+    const isFirstCommit = !headBeforeCommit;
     const parents = state.mergeInProgress
-        ? [state.refs[state.currentBranch], state.mergeHead].filter(Boolean)
-        : undefined;
+             ? [state.refs[state.currentBranch], state.mergeHead].filter(Boolean)
+             : undefined;
     const mergeBossEncounter = !!(state.mergeInProgress && window.gameState.flags && window.gameState.flags.mergeConflictBoss);
 
     const result = createCommit(state, {
@@ -1566,6 +1631,13 @@ gitCommands.commit = function(args) {
         if (window.Effects && window.Effects.sparkle) window.Effects.sparkle();
     }
     reactCharacter('commit-success', { commit: result.commit });
+
+         // Non-blocking coaching moment that reinforces good habits.
+         if (isFirstCommit) {
+             fireCommitCoach('first', 'Nice first commit! \uD83CE\uDF8A Real projects describe what changed, e.g. git commit -m "feat: add the login flow". Try that style next time.');
+           } else if (messageQuality && messageQuality.quality === 'short' && !messageQuality.conventional) {
+             fireCommitCoach('short', messageQuality.reason);
+           }
 
     if (window.gameEngine) {
         window.gameEngine.checkObjectives();
@@ -1762,6 +1834,7 @@ gitCommands.checkout = function(args) {
     playGitCue('switch');
     if (args.some((a) => /^[a-f0-9]{7,40}$/.test(a))) {
         window.gameState.flags.recoveredCommit = true;
+    }
     const targetSha = resolveRevision(state, branch);
     if (!targetSha) {
         return { success: false, message: "error: pathspec '" + branch + "' did not match any file(s) known to git", xp: 0 };
@@ -2755,6 +2828,12 @@ gitCommands.isValidCommitMessage = isValidCommitMessage;
 Object.keys(gitCommands).forEach((name) => {
     if (typeof gitCommands[name] !== 'function') return;
     if (name === '_hash') return;
+     // These are helper functions, NOT user commands. Wrapping them with the
+      // event-recording adapter would call them with the wrong signature (args array)
+       // and corrupt the validation / suggestion flow.
+    if (name === 'isValidCommitMessage' || name === 'validateCommitMessage' ||
+        name === 'suggestCommand' || name === 'resolveAliasTokens' ||
+        name === 'commandCorrections' || name === 'builtInAliases') return;
     if (gitCommands[name].__eventWrapped) return;
 
     const original = gitCommands[name];

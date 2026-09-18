@@ -7,65 +7,6 @@
 const lessons = [
     {
         id: 0,
-        title: "Level 1: Novice Initiate",
-        icon: "🌱",
-        iconClass: "novice",
-        xpReward: 100,
-        titleName: "Novice Initiate",
-        description: "Your journey begins here",
-        objectives: [
-            "Configure your git identity (name and email)",
-            "Initialize a new repository",
-            "Create your first file and stage it",
-            "Make your first commit"
-        ],
-        content: `
-            <h2>🌱 Welcome, Young Apprentice!</h2>
-            <p>Git is a powerful <strong>Version Control System</strong> that tracks changes in your code. Think of it as a time machine for your files!</p>
-            <p>Your home directory is your personal camp. Your repositories live in project folders inside <code>~/projects/</code>, and your hidden <code>.gitconfig</code> stays in home where <code>ls -al</code> can reveal it.</p>
-            
-            <h3>What You'll Learn</h3>
-            <ul>
-                <li><code>git config</code> - Set up your identity</li>
-                <li><code>git init</code> - Start a new repository</li>
-                <li><code>echo</code> - Create files with content</li>
-                <li><code>ls</code> - List files in directory</li>
-                <li><code>cat</code> - Display file contents</li>
-                <li><code>git add</code> - Stage files for commit</li>
-                <li><code>git commit</code> - Save your changes permanently</li>
-            </ul>
-
-            <div class="tip-box">
-                💡 <strong>Pro Tip:</strong> Git takes "snapshots" of your project, not just differences!
-            </div>
-
-            <h3>Setting Up Your Identity</h3>
-            <pre><code>git config --global user.name "Your Name"
-git config --global user.email "your@email.com"</code></pre>
-            <p>This lesson wants you to set identity through Git itself. Later, <code>ls -al</code> in your home directory will show the hidden <code>.gitconfig</code> file that stores those global settings.</p>
-
-            <h3>Working in a Project Folder</h3>
-            <pre><code>pwd
-cd ~/projects/level-1
-ls -al</code></pre>
-
-            <h3>Creating Your First Repo</h3>
-            <pre><code>git init</code></pre>
-
-            <h3>Creating Files</h3>
-            <pre><code>echo "Hello World" > hello.txt
-echo "My Project" > README.md
-ls              # List files
-cat hello.txt    # Show file content</code></pre>
-
-            <h3>Seeing Hidden Files</h3>
-            <pre><code>ls -a
-ls -la</code></pre>
-            <p>Use this when you want to inspect hidden files such as <code>.git</code>, <code>.gitignore</code>, or your course-wide <code>.gitconfig</code>.</p>
-
-const lessons = [
-    {
-        id: 0,
         title: "Level 1: Must-Know Foundations",
         icon: "🌱",
         iconClass: "must-know",

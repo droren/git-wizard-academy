@@ -240,14 +240,6 @@
                     headCommit.parents.includes(startHeadSha) &&
                     headCommit.parents.includes(expectedMergeHead);
             }
-            (state) => !!(state.flags && state.flags.conflictCreated) || 
-                !!(state.flags && state.flags.conflictMarkersIdentified),
-            (state) => !!(state.flags && state.flags.conflictMarkersIdentified) ||
-                !!(state.flags && state.flags.conflictResolved),
-            (state) => !!(state.flags && state.flags.conflictResolved) ||
-                !!(state.flags && state.flags.mergeCompleted),
-            (state) => mergesSinceLevelStart(state) >= 1 || 
-                !!(state.flags && state.flags.mergeCompleted)
         ],
 
         // Level 4: Stash + Tag + Alias
@@ -320,14 +312,14 @@
     };
 
     function evaluateObjective(levelId, objectiveIndex, state) {
-        const levelRules = flexibleRules[levelId];
+        const levelRules = strictRules[levelId];
         if (!levelRules || !levelRules[objectiveIndex]) return null;
         return !!levelRules[objectiveIndex](state);
     }
 
     // NEW: Get validation feedback for user
     function getValidationFeedback(levelId, objectiveIndex, state) {
-        const levelRules = flexibleRules[levelId];
+        const levelRules = strictRules[levelId];
         if (!levelRules || !levelRules[objectiveIndex]) return null;
         
         const result = levelRules[objectiveIndex](state);
