@@ -3396,21 +3396,32 @@ body {
 .panel.lesson-panel > .panel-header {
     flex: 0 0 auto;
 }
-.panel.lesson-panel > .panel-content {
+/* `.lesson-panel` is a grid item with `align-items: start`, so its height is grid-
+    derived and a `flex: 1 1 auto; min-height: 0` child alone does not reliably scroll
+    (the panel just clips). Give the body its own definite max-height AND an overflow, plus
+    an `#lessonContent` id selector for top specificity so a later `.panel { overflow:hidden }`
+    or `.panel-content` rule cannot clobber the scroll. */
+.panel.lesson-panel > .panel-content,
+#lessonContent {
     flex: 1 1 auto;
-    min-height: 0;             /* critical: lets the flex child shrink so it scrolls */
+    min-height: 0;
+    max-height: calc(100vh - 260px);
     overflow-y: auto;
+    overflow-x: hidden;
     padding-bottom: 22px;
     scrollbar-width: thin;
     scrollbar-color: rgba(123, 155, 207, 0.5) transparent;
 }
+#lessonContent::-webkit-scrollbar,
 .panel.lesson-panel > .panel-content::-webkit-scrollbar {
     width: 10px;
 }
+#lessonContent::-webkit-scrollbar-thumb,
 .panel.lesson-panel > .panel-content::-webkit-scrollbar-thumb {
     background: rgba(123, 155, 207, 0.4);
     border-radius: 6px;
 }
+#lessonContent::-webkit-scrollbar-track,
 .panel.lesson-panel > .panel-content::-webkit-scrollbar-track {
     background: transparent;
 }

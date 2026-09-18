@@ -45,8 +45,12 @@
   crawl's `animationend` and the scroll holds opacity long enough to read.
 - The lesson panel (character card + "Chronicle of Broken Time" backstory) no longer clips off the
   bottom of its card: a later `.panel { overflow: hidden }` rule had clobbered the intended
-  `overflow-y: auto`. The panel is now a viewport-capped flex column with a pinned header and an
-  internally scrolling body, so the whole mission is always readable.
+   `overflow-y: auto`. A first attempt used a capped flex column with a `min-height: 0` child,
+  but that does not reliably scroll because `.lesson-panel` is a grid item under `align-items: start`
+   (grid-derived height, indefinite for its children). The fix now gives the body a DEFINITE
+   `max-height` plus `overflow-y: auto` under the `#lessonContent` id selector (top specificity),
+  so no later `.panel` / `.panel-content` rule can clobber the scroll and the whole mission is
+  always readable, header pinned.
 
 ### Added
 
