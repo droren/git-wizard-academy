@@ -201,8 +201,12 @@
                 const byBranch = (state.flags && state.flags.commitsByBranchSinceLevelStart) || {};
                 return Object.keys(byBranch).filter((b) => byBranch[b] >= 1).length >= 2;
             },
-            (state) => !!(state.flags && state.flags.ranMerge) || 
-                commitsSinceLevelStart(state) >= 2
+            (state) => {
+                // "Prepare a merge path" requires an ACTUAL merge in this level (a two-parent
+                // merge commit), not merely two diverged commits, so the level is not marked
+                // complete before the player actually runs a merge.
+                return mergesSinceLevelStart(state) >= 1 || !!(state.flags && state.flags.ranMerge);
+            }
         ],
 
         // Level 3: Conflict + Resolve + Merge

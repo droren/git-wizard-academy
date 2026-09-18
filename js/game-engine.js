@@ -1732,46 +1732,124 @@ const gameEngine = {
         });
     },
     
-    // Check if level is complete
-    checkLevelComplete: function() {
-        const allComplete = window.gameState.currentObjectives.every(function(o) { return o === 'complete'; });
-        if (!allComplete) {
-            window.gameState.levelReadyToProceed = false;
-            this.updateObjectivesPanelState();
-            return;
-        }
 
-        window.gameState.levelReadyToProceed = true;
-        const lesson = (window.lessons && window.lessons[window.gameState.currentLevel]) ? window.lessons[window.gameState.currentLevel] : null;
-        if (lesson && lesson.tierIsCapstone) {
-            window.gameState.tierProgress = window.gameState.tierProgress || {};
-            window.gameState.tierProgress[lesson.tierKey] = {
-                levelIndex: window.gameState.currentLevel,
-                tierName: lesson.tier,
-                completedAt: new Date().toISOString()
-            };
-            const cfg = this.getVisibleGlobalConfig();
-            if (this.isIdentityConfirmed() && cfg['user.name'] && cfg['user.email']) {
-                this.storeCertificateRecord(this.buildCertificateRecord(window.gameState.currentLevel));
+     // Check if level is complete
+     checkLevelComplete: function() {
+         const allComplete = window.gameState.currentObjectives.every(function(o) { return o === 'complete'; });
+         if (!allComplete) {
+             window.gameState.levelReadyToProceed = false;
+             this.updateObjectivesPanelState();
+             return;
             }
-        }
-        if (window.gameState.completedLevels.indexOf(window.gameState.currentLevel) === -1) {
-            window.gameState.completedLevels.push(window.gameState.currentLevel);
-        }
-        this.recordSuccessfulLevelRun();
 
-        window.gameState.flags = window.gameState.flags || {};
-        if (!window.gameState.flags.levelCompletionCelebrated) {
-            window.gameState.flags.levelCompletionCelebrated = true;
-            if (window.ui && window.ui.celebrateObjectivesPanel) {
-                window.ui.celebrateObjectivesPanel();
+         window.gameState.levelReadyToProceed = true;
+         const levelIndex = window.gameState.currentLevel;
+         const lesson = (window.lessons && window.lessons[levelIndex]) ? window.lessons[levelIndex] : null;
+         window.gameState.completedLevelRuns = window.gameState.completedLevelRuns || {};
+              // Capture whether this is the FIRST time the current level completed, so the
+              // "Level Completed! Success" popup fires only once per level.
+         const firstTimeCompletion = !window.gameState.completedLevelRuns[levelIndex];
+         if (lesson && lesson.tierIsCapstone) {
+             window.gameState.tierProgress = window.gameState.tierProgress || {};
+             window.gameState.tierProgress[lesson.tierKey] = {
+                 levelIndex: levelIndex,
+                 tierName: lesson.tier,
+                 completedAt: new Date().toISOString()
+                };
+             const cfg = this.getVisibleGlobalConfig();
+             if (this.isIdentityConfirmed() && cfg['user.name'] && cfg['user.email']) {
+                 this.storeCertificateRecord(this.buildCertificateRecord(levelIndex));
+                }
             }
-        }
-        this.renderCertificateButton();
-        this.renderCertificateLibrary();
-        this.renderLiveGitHubState();
-        this.updateObjectivesPanelState();
-    },
+         if (window.gameState.completedLevels.indexOf(levelIndex) === -1) {
+             window.gameState.completedLevels.push(levelIndex);
+            }
+         this.recordSuccessfulLevelRun();
+
+         window.gameState.flags = window.gameState.flags || {};
+         if (!window.gameState.flags.levelCompletionCelebrated) {
+             window.gameState.flags.levelCompletionCelebrated = true;
+             if (window.ui && window.ui.celebrateObjectivesPanel) {
+                 window.ui.celebrateObjectivesPanel();
+                }
+            }
+         this.renderCertificateButton();
+         this.renderCertificateLibrary();
+         this.renderLiveGitHubState();
+         this.updateObjectivesPanelState();
+
+           // Concrete, always-visible "Level Completed! Success" popup that fires on EVERY
+           // level the first time it completes - previously only the side "Next Level" panel
+           // button surfaced completion, which is why levels 1 & 2 seemed to have no popup.
+         if (firstTimeCompletion) {
+             this.showLevelCompleteModal(levelIndex);
+            }
+        },
+
+        // Raise the #levelCompleteModal (Review / Replay / Next buttons) with chapter-specific
+        // copy from story-arc, an XP badge, a reward chip, and Next Level / Finish.
+      showLevelCompleteModal: function(levelIndex) {
+          const modal = document.getElementById('levelCompleteModal');
+          if (!modal) return;
+
+          const total = (window.lessons || []).length;
+          const isLast = total > 0 && levelIndex >= total - 1;
+          const lesson = (window.lessons && window.lessons[levelIndex]) ? window.lessons[levelIndex] : null;
+
+          const titleEl = document.getElementById('modalTitle');
+          const subEl = document.getElementById('modalSubtitle');
+          const loreEl = document.getElementById('modalLore');
+          const xpEl = document.getElementById('modalXP');
+          const rewardsEl = document.getElementById('modalRewards');
+          const nextBtn = modal.querySelector('.modal-buttons .btn-primary');
+
+          let title = (lesson ? lesson.title : 'Level ' + (levelIndex + 1)) + ' — Complete!';
+          let subtitle = 'Success — every objective on this chapter is done.';
+          let loreHtml = '';
+          let xpText = lesson && lesson.xpReward ? ('+' + lesson.xpReward + ' XP') : '';
+
+          if (window.storyArc) {
+              const brief = window.storyArc.getGuideBrief && window.storyArc.getGuideBrief(levelIndex);
+              const transition = window.storyArc.getTransitionText && window.storyArc.getTransitionText(levelIndex);
+              if (brief) {
+                  const mentor = brief.mentor;
+                  const lead = mentor && mentor.avatar ? (mentor.avatar + ' ' + mentor.name + ': ') : 'Mentor: ';
+                  subtitle = lead + (transition || brief.teaser || 'On to the next chapter of the campaign.');
+                  const next = brief.teaser ? ('<strong>Next Frontier:</strong> ' + brief.teaser) : '';
+                  const bonus = brief.bonus ? ('<br><strong>Bonus Insight:</strong> ' + brief.bonus) : '';
+                  loreHtml = next + bonus;
+                 }
+             }
+          if (isLast) {
+              title = '\u{1F3C6} Grand Git Wizard!';
+              subtitle = 'You mastered every chapter of Git Wizard Academy.';
+              loreHtml = '<strong>Campaign complete.</strong> Export your real repository and print a certificate above to share it.';
+             }
+
+          if (titleEl) titleEl.textContent = title;
+          if (subEl) subEl.textContent = subtitle;
+          if (loreEl) loreEl.innerHTML = loreHtml;
+          if (xpEl) {
+              if (isLast) { xpEl.style.display = 'none'; }
+              else if (xpText) { xpEl.textContent = xpText; xpEl.style.display = ''; }
+             }
+          if (rewardsEl) {
+              rewardsEl.innerHTML = '';
+              const badge = document.createElement('div');
+              badge.className = 'modal-reward-chip';
+              const label = (lesson && lesson.titleName ? lesson.titleName : '') +
+                    (lesson && lesson.tierIsCapstone ? ' • Tier Capstone' : '');
+              badge.textContent = label.trim() ? ('\u{1F3C5} ' + label.trim()) : '\u{1F3C5} Chapter complete';
+              rewardsEl.appendChild(badge);
+             }
+          if (nextBtn) nextBtn.textContent = isLast ? 'Finish \u{1F3C6}' : 'Next Level \u2192';
+
+          modal.classList.add('show');
+          if (window.Assets && typeof window.Assets.playSound === 'function') {
+              try { window.Assets.playSound('success'); } catch (e) {}
+             }
+        },
+
 
     recordCommandResult: function(input, result) {
         window.gameState.levelCommandHistory = Array.isArray(window.gameState.levelCommandHistory)

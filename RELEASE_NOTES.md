@@ -1,5 +1,34 @@
 # Release Notes
 
+## 2026-09-19 - Consistent "Level Completed!" Popup
+
+### Fixed
+
+- A "Level Completed! Success" popup now appears on **every** level the first time all of its
+  objectives complete. Previously no completion popup was raised at all — only a side "Next Level"
+  panel button — which is why levels 1 and 2 seemed to finish silently and the player had to pick
+  the next level from the right-hand map.
+- The popup is now raised by `checkLevelComplete` through a new `showLevelCompleteModal`, which fills
+   a chapter-specific title, a story-arc transition/next-frontier line, an XP badge, a reward chip,
+  and a "Next Level →" (or "Finish 🏆" on the last level) action into the existing
+   `#levelCompleteModal`. It fires only once per level (guarded by `completedLevelRuns`), so replays,
+  re-renders, and save-loads never re-pop it.
+- "Level 3: Good-to-Know Branchcraft" no longer completes prematurely. Its final objective,
+  "Prepare a merge path", was satisfied by any two commits on two branches. It now requires an actual
+   `git merge` (a two-parent merge commit), matching real Git and the level's goal of preparing an
+   integration path.
+- Level 3's on-screen instructions now include `git merge feature/ui` so the new, stricter objective
+  remains reachable for the player.
+
+### Added
+
+- `gameEngine.showLevelCompleteModal(levelIndex)` and the `firstTimeCompletion` capture in
+   `checkLevelComplete` (gates one popup per level).
+- `#levelCompleteModal` styling: `.modal-reward-chip` and a title "pop" animation on appearance.
+- Regression suite `tests/level-completion-popup.test.js`: the popup fires exactly once on first
+  completion of a level, not at all before completion, and Level 3 does not become ready before a
+   real `git merge`; the new suite is wired into `tests/run-all.sh` (27 suites, all green).
+
 ## 2026-09-18 - Commit UX, Guide Readability, and Intro Timing
 
 ### Fixed

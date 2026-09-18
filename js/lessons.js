@@ -98,8 +98,9 @@ git log --oneline</code></pre>
             <pre><code>git switch -c feature/ui
 git commit -m "feat: ui draft"
 git switch main
-git commit -m "docs: update main notes"</code></pre>
-            <p>Good-to-Know means you can isolate work safely before integration.</p>
+git commit -m "docs: update main notes"
+git merge feature/ui</code></pre>
+            <p>Good-to-Know means you can isolate work safely before integration. Create a feature branch, commit on it, switch back, commit, then <code>git merge</code> that feature branch back into <code>main</code> - the two-parent merge commit is the "prepared merge path".</p>
             <div class="objective-box"><div class="objective-header"><span class="objective-icon">🎯</span><span class="objective-title">Your Objectives</span></div><ul class="objective-list" id="objectiveList"></ul></div>
         `,
         initialGitState: {

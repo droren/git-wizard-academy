@@ -52,6 +52,7 @@ node tests/detached-head.test.js
 node tests/git-commands.test.js
 node tests/boot-smoke.test.js
 node tests/level-1-playthrough.test.js
+node tests/level-completion-popup.test.js
 node tests/commit-any-message.test.js
 
 echo "all checks passed"
