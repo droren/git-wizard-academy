@@ -14,6 +14,10 @@
   scrolling story-and-terminal panes.
 - The intro crawl no longer vanishes ~10s before "ready to play"; the finale is tied to the
   crawl's `animationend` and the scroll holds opacity long enough to read.
+- The lesson panel (character card + "Chronicle of Broken Time" backstory) no longer clips off the
+  bottom of its card: a later `.panel { overflow: hidden }` rule had clobbered the intended
+  `overflow-y: auto`. The panel is now a viewport-capped flex column with a pinned header and an
+  internally scrolling body, so the whole mission is always readable.
 
 ### Added
 

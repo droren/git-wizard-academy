@@ -3380,3 +3380,37 @@ body {
 .guide-overlay .guide-header {
     flex: 0 0 auto;
 }
+
+/* --- Lesson panel readability fix -----------------------------------------
+   A later `.panel { overflow: hidden }` block had the same specificity as
+   `.lesson-panel` but came later, so it clobbered the intended overflow-y:auto
+   and the long story/chronicle text was clipped off the bottom of the card with
+   no scrollbar. Scope to `.panel.lesson-panel` (higher specificity) and make the
+   panel a capped flex column whose header stays pinned while the body scrolls. */
+.panel.lesson-panel {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 176px);
+    overflow: hidden;
+}
+.panel.lesson-panel > .panel-header {
+    flex: 0 0 auto;
+}
+.panel.lesson-panel > .panel-content {
+    flex: 1 1 auto;
+    min-height: 0;             /* critical: lets the flex child shrink so it scrolls */
+    overflow-y: auto;
+    padding-bottom: 22px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(123, 155, 207, 0.5) transparent;
+}
+.panel.lesson-panel > .panel-content::-webkit-scrollbar {
+    width: 10px;
+}
+.panel.lesson-panel > .panel-content::-webkit-scrollbar-thumb {
+    background: rgba(123, 155, 207, 0.4);
+    border-radius: 6px;
+}
+.panel.lesson-panel > .panel-content::-webkit-scrollbar-track {
+    background: transparent;
+}
