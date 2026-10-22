@@ -31,6 +31,8 @@ const builtInGitAliases = {
 
 const GIT_CONFIG_STORAGE_KEY = 'gwa_git_config_v1';
 const model = window.repoModel || {};
+const gitCore = window.gitCore || {};
+const gitStateTools = window.gitStateTools || {};
 
 function playGitCue(name, options) {
     if (window.Assets && window.Assets.playSound) {
@@ -129,28 +131,27 @@ function levenshteinDistance(a, b) {
     return matrix[b.length][a.length];
 }
 
-// tiny non-crypto hash for file snapshots (good enough for a game)
 function hashContent(str) {
+    if (gitCore.hashContent) return gitCore.hashContent(str);
     if (model.hashContent) return model.hashContent(str);
     str = String(str || '');
-    let h = 5381;
+    let hash = 5381;
     for (let i = 0; i < str.length; i++) {
-        h = ((h << 5) + h) + str.charCodeAt(i); // djb2
-        h = h >>> 0;
+        hash = (((hash << 5) + hash) + str.charCodeAt(i)) >>> 0;
     }
-    return h.toString(16);
+    return hash.toString(16);
 }
 
 function toSha(seed) {
+    if (gitCore.toSha) return gitCore.toSha(seed);
     if (model.toSha) return model.toSha(seed);
     let hex = hashContent(seed || '0');
-    while (hex.length < 40) {
-        hex += hashContent(hex + ':' + seed + ':' + hex.length);
-    }
+    while (hex.length < 40) hex += hashContent(hex + ':' + seed + ':' + hex.length);
     return hex.slice(0, 40);
 }
 
 function deepClone(obj) {
+    if (gitCore.deepClone) return gitCore.deepClone(obj);
     if (model.deepClone) return model.deepClone(obj);
     return JSON.parse(JSON.stringify(obj));
 }
@@ -258,22 +259,6 @@ function ensureGitState() {
     if (!Array.isArray(s.conflictFiles)) s.conflictFiles = [];
 
     s.remotes = s.remotes || {};
-    if (!s.remotes.origin) {
-        s.remotes.origin = {
-            name: 'origin',
-            fetchUrl: 'https://example.com/git-wizard-origin.git',
-            pushUrl: 'https://example.com/git-wizard-origin.git',
-            branches: {}
-        };
-    }
-    if (!s.remotes.upstream) {
-        s.remotes.upstream = {
-            name: 'upstream',
-            fetchUrl: 'https://example.com/git-wizard-upstream.git',
-            pushUrl: 'https://example.com/git-wizard-upstream.git',
-            branches: {}
-        };
-    }
     s.remoteRefs = s.remoteRefs || {};
     s.tracking = s.tracking || {};
     Object.keys(s.remotes).forEach((remoteName) => {
@@ -283,11 +268,13 @@ function ensureGitState() {
         remote.pushUrl = remote.pushUrl || remote.fetchUrl || '';
         remote.branches = remote.branches || {};
     });
-    Object.keys(s.refs || {}).forEach((localBranch) => {
-        if (!s.tracking[localBranch]) {
-            s.tracking[localBranch] = { remote: 'origin', merge: 'refs/heads/' + localBranch };
-        }
-    });
+    if (s.remotes.origin) {
+        Object.keys(s.refs || {}).forEach((localBranch) => {
+            if (!s.tracking[localBranch]) {
+                s.tracking[localBranch] = { remote: 'origin', merge: 'refs/heads/' + localBranch };
+            }
+        });
+    }
 
     return s;
 }
@@ -357,6 +344,7 @@ function ensureGitEventHistory() {
 
 function captureGitSnapshot() {
     const state = (window.gameState && window.gameState.gitState) || {};
+    if (gitStateTools.captureSnapshot) return gitStateTools.captureSnapshot(state);
     return {
         currentBranch: state.currentBranch || null,
         branches: Array.isArray(state.branches) ? state.branches.slice() : [],
@@ -2694,6 +2682,7 @@ gitCommands.pull = async function(args) {
     const remoteName = plain[0] || tracking.remote || 'origin';
     const requestedBranch = plain[1] || tracking.merge.replace('refs/heads/', '');
     const rebaseRequested = args.includes('--rebase') || readConfigValue(state, 'pull.rebase') === 'true';
+    const ffOnlyRequested = args.includes('--ff-only');
     const remote = state.remotes[remoteName];
     if (!remote) return { success: false, message: "fatal: '" + remoteName + "' does not appear to be a git repository", xp: 0 };
 
@@ -2718,6 +2707,14 @@ gitCommands.pull = async function(args) {
             success: true,
             message: 'Updating ' + localSha.slice(0, 7) + '..' + remoteSha.slice(0, 7) + '\nFast-forward\n(note: pull is simulated in Git Wizard Academy)',
             xp: 25
+        };
+    }
+
+    if (ffOnlyRequested) {
+        return {
+            success: false,
+            message: 'fatal: Not possible to fast-forward, aborting.\n(note: pull --ff-only is simulated in Git Wizard Academy)',
+            xp: 0
         };
     }
 

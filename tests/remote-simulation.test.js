@@ -40,6 +40,9 @@ function loadRuntime() {
   global.localStorage = windowObj.localStorage;
   global.document = windowObj.document;
 
+  const coreSrc = fs.readFileSync(path.join(__dirname, '..', 'js', 'git-core.js'), 'utf8');
+  // eslint-disable-next-line no-new-func
+  new Function('window', `${coreSrc}\nreturn window.gitCore;`)(windowObj);
   const gitSrc = fs.readFileSync(path.join(__dirname, '..', 'js', 'git-commands.js'), 'utf8');
   // eslint-disable-next-line no-new-func
   new Function('window', 'localStorage', 'document', `${gitSrc}\nreturn window.gitCommands;`)(windowObj, windowObj.localStorage, windowObj.document);
@@ -152,6 +155,19 @@ async function run() {
   const reviewResult = await w.gameEngine.runLiveGitHubReviewBot();
   assert(reviewResult.simulated, 'review should run in simulated mode');
   assert.strictEqual(reviewResult.result.merged, false, 'merge must be blocked when CI checks fail');
+
+  // A clean simulated PR must record the same progression evidence as Live GitHub Mode.
+  w.gameState.gitState.currentBranch = 'feature';
+  w.gameState.gitState.refs.feature = 'b'.repeat(40);
+  w.gameState.gitState.commitBySha['b'.repeat(40)].snapshot = { 'README.md': 'CI-clean feature update' };
+  const cleanPr = await w.gameEngine.createLiveGitHubPr();
+  assert(cleanPr.simulated, 'clean PR should run in simulated mode');
+  assert.strictEqual(w.gameState.flags.createdPullRequest, true, 'simulated PR creation should satisfy PR objective evidence');
+  const cleanReview = await w.gameEngine.runLiveGitHubReviewBot();
+  assert.strictEqual(cleanReview.result.merged, true, 'clean simulated PR should merge after review');
+  assert.strictEqual(w.gameState.flags.reviewedPullRequest, true, 'simulated review should satisfy review objective evidence');
+  assert.strictEqual(w.gameState.flags.ciChecksPassed, true, 'simulated green CI should satisfy CI objective evidence');
+  assert.strictEqual(w.gameState.flags.mergedWhenChecksPass, true, 'simulated green merge should satisfy merge gate evidence');
 
   console.log('remote-simulation: all tests passed');
 }

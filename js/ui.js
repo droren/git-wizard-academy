@@ -1505,7 +1505,7 @@ const ui = {
     // Save nano file
     saveNano: function() {
         const textarea = document.getElementById('nanoTextarea');
-        const filename = document.getElementById('nanoFilename').textContent;
+        const filename = window.gameState.nanoFile || document.getElementById('nanoFilename').textContent;
         
         if (textarea && window.gameState.nanoFile) {
             const fs = window.fileSystemModule;

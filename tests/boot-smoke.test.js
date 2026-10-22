@@ -142,7 +142,7 @@ function buildEnvironment() {
 
 // ------------------------------------------------------------------ module order (matches index.html)
 const MODULES = [
-   'js/storage-stores.js', 'js/repo-model.js', 'js/file-system.js', 'js/dev-logger.js',
+   'js/storage-stores.js', 'js/repo-model.js', 'js/git-core.js', 'js/git-state.js', 'js/file-system.js', 'js/dev-logger.js',
    'js/asset-loader.js', 'js/effects.js', 'js/character-system.js', 'js/intro-sprite-showcase.js',
    'js/ambient-engine.js', 'js/shell-commands.js', 'js/git-commands.js', 'js/achievements.js',
    'js/lessons.js', 'js/lesson-guides.js', 'js/story-arc.js', 'js/objective-rules.js',

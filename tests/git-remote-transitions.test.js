@@ -15,7 +15,10 @@ async function run() {
     }
   });
 
-  let res = await simulated.git.fetch([]);
+  let res = await simulated.git.remote(['add', 'origin', 'https://example.com/origin.git']);
+  assert.strictEqual(res.success, true, 'simulated origin setup should succeed');
+
+  res = await simulated.git.fetch([]);
   assert.strictEqual(res.success, true, 'simulated fetch should succeed');
   assert.match(res.message, /fetch is simulated/, 'simulated fetch should mention simulator mode');
 

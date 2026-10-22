@@ -45,6 +45,7 @@ function bootGitCommands() {
 
   loadScript(path.join(__dirname, '..', 'js', 'file-system.js'), scope);
   loadScript(path.join(__dirname, '..', 'js', 'repo-model.js'), scope);
+  loadScript(path.join(__dirname, '..', 'js', 'git-core.js'), scope);
   loadScript(path.join(__dirname, '..', 'js', 'git-commands.js'), scope);
 
   return windowObj;
