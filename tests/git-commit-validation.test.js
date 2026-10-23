@@ -44,6 +44,8 @@ function load() {
   vm.runInThisContext(fsSource, { filename: 'file-system.js' });
   const storageSource = fs.readFileSync(require.resolve('../js/storage-stores.js'), 'utf8');
   vm.runInThisContext(storageSource, { filename: 'storage-stores.js' });
+  const coreSource = fs.readFileSync(require.resolve('../js/git-core.js'), 'utf8');
+  vm.runInThisContext(coreSource, { filename: 'git-core.js' });
   const source = fs.readFileSync(require.resolve('../js/git-commands.js'), 'utf8');
   vm.runInThisContext(source, { filename: 'git-commands.js' });
 

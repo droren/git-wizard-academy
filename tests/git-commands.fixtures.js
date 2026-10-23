@@ -148,6 +148,8 @@ function createHarness(options = {}) {
     clearTimeout
   };
 
+  const corePath = path.join(__dirname, '..', 'js', 'git-core.js');
+  vm.runInNewContext(fs.readFileSync(corePath, 'utf8'), context, { filename: corePath });
   const sourcePath = path.join(__dirname, '..', 'js', 'git-commands.js');
   const source = fs.readFileSync(sourcePath, 'utf8');
   vm.runInNewContext(source, context, { filename: sourcePath });

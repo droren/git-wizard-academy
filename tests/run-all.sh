@@ -4,6 +4,8 @@ set -eu
 node --check js/objective-rules.js
 node --check js/game-engine.js
 node --check js/git-commands.js
+node --check js/git-core.js
+node --check js/git-state.js
 node --check js/lessons.js
 node --check js/ui.js
 node --check js/lesson-guides.js
@@ -49,6 +51,16 @@ node tests/git-hooks-rejection.test.js
 node tests/git-rebase-rewrite.test.js
 node tests/git-remote-transitions.test.js
 node tests/detached-head.test.js
+node tests/remote-simulation.test.js
+node tests/pull-ff-only.test.js
+node tests/nano-save.test.js
+node tests/capstone-seed-ci.test.js
+node tests/capstone-remote-setup.test.js
+node tests/capstone-level-setup.test.js
+node tests/git-core.test.js
+node tests/git-state.test.js
+node tests/favicon.test.js
+node tests/campaign-playthrough.test.js
 node tests/git-commands.test.js
 node tests/boot-smoke.test.js
 node tests/level-1-playthrough.test.js

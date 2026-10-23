@@ -668,6 +668,8 @@ const gameEngine = {
                 createdAt: new Date().toISOString()
             };
             prs.push(pr);
+            window.gameState.flags = window.gameState.flags || {};
+            window.gameState.flags.createdPullRequest = true;
             this.updateLiveGitHubStatus('Created simulated PR #' + pr.number + ' from ' + headBranch + ' → main. Run Review/CI next.');
             this.syncLiveGitHubState({ lastPr: pr });
             return { simulated: true, pr };
@@ -707,11 +709,18 @@ const gameEngine = {
                 approved: ci.passed,
                 notes: ci.passed ? ['All simulated checks passed.'] : ['CI failed for: ' + ci.failingFiles.join(', ')]
             };
+            window.gameState.flags = window.gameState.flags || {};
+            window.gameState.flags.reviewedPullRequest = true;
+            window.gameState.flags.ciChecksPassed = ci.passed;
             if (!ci.passed) {
                 this.updateLiveGitHubStatus('Simulated review blocked PR #' + pr.number + ': CI failed for ' + ci.failingFiles.join(', ') + '.');
+                this.checkObjectives();
+                this.saveGame();
                 return { simulated: true, result: { problems: ci.failingFiles, merged: false } };
             }
             const mergeResult = await this.mergeLiveGitHubPr();
+            this.checkObjectives();
+            this.saveGame();
             return { simulated: true, result: { problems: [], merged: !!mergeResult } };
         }
         const state = this.getLiveGitHubState();
@@ -727,6 +736,8 @@ const gameEngine = {
         this.updateLiveGitHubStatus(result.result && result.result.problems && result.result.problems.length
             ? 'Review bot left feedback on PR #' + state.lastPr.number + '.'
             : 'Review bot found no blocking issues.');
+        this.checkObjectives();
+        this.saveGame();
         return result;
     },
 
@@ -744,6 +755,9 @@ const gameEngine = {
             window.gameState.gitState.refs[base] = window.gameState.gitState.refs[source];
             pr.state = 'merged';
             pr.mergedAt = new Date().toISOString();
+            window.gameState.flags = window.gameState.flags || {};
+            window.gameState.flags.ciChecksPassed = true;
+            window.gameState.flags.mergedWhenChecksPass = true;
             this.updateLiveGitHubStatus('Merged simulated PR #' + pr.number + ' into ' + base + '.');
             return { simulated: true, pr };
         }
@@ -1117,20 +1131,22 @@ const gameEngine = {
             commits: lesson.initialGitState.commits ? [...lesson.initialGitState.commits] : [],
             staged: [],
             trackedFiles: {},  // Track committed files
-            remotes: {
-                origin: {
-                    name: 'origin',
-                    fetchUrl: 'https://example.com/git-wizard-origin.git',
-                    pushUrl: 'https://example.com/git-wizard-origin.git',
-                    branches: {}
+            remotes: lesson.initialRemotes
+                ? JSON.parse(JSON.stringify(lesson.initialRemotes))
+                : {
+                    origin: {
+                        name: 'origin',
+                        fetchUrl: 'https://example.com/git-wizard-origin.git',
+                        pushUrl: 'https://example.com/git-wizard-origin.git',
+                        branches: {}
+                    },
+                    upstream: {
+                        name: 'upstream',
+                        fetchUrl: 'https://example.com/git-wizard-upstream.git',
+                        pushUrl: 'https://example.com/git-wizard-upstream.git',
+                        branches: {}
+                    }
                 },
-                upstream: {
-                    name: 'upstream',
-                    fetchUrl: 'https://example.com/git-wizard-upstream.git',
-                    pushUrl: 'https://example.com/git-wizard-upstream.git',
-                    branches: {}
-                }
-            },
             remoteRefs: {},
             tracking: {},
             pullRequests: []
@@ -1215,7 +1231,7 @@ const gameEngine = {
 
                 (lesson.initialGitState.commits || []).forEach(function(c, idx) {
                     const branchName = c.branch || lesson.initialGitState.currentBranch || 'main';
-                    const parentSha = headsByBranch[branchName] || null;
+                    const parentSha = headsByBranch[branchName] || (branchName !== 'main' ? headsByBranch.main : null);
                     const parentSnapshot = parentSha && commitBySha[parentSha]
                         ? JSON.parse(JSON.stringify(commitBySha[parentSha].snapshot || {}))
                         : {};
@@ -1266,11 +1282,13 @@ const gameEngine = {
                 window.gameState.gitState.commits = seededCommits;
                 window.gameState.gitState.commitBySha = commitBySha;
                 window.gameState.gitState.refs = Object.assign({}, headsByBranch);
-                window.gameState.gitState.remotes.origin.branches = Object.assign({}, headsByBranch);
-                Object.keys(headsByBranch).forEach(function(branchName) {
-                    window.gameState.gitState.remoteRefs['refs/remotes/origin/' + branchName] = headsByBranch[branchName];
-                    window.gameState.gitState.tracking[branchName] = { remote: 'origin', merge: 'refs/heads/' + branchName };
-                });
+                if (window.gameState.gitState.remotes.origin) {
+                    window.gameState.gitState.remotes.origin.branches = Object.assign({}, headsByBranch);
+                    Object.keys(headsByBranch).forEach(function(branchName) {
+                        window.gameState.gitState.remoteRefs['refs/remotes/origin/' + branchName] = headsByBranch[branchName];
+                        window.gameState.gitState.tracking[branchName] = { remote: 'origin', merge: 'refs/heads/' + branchName };
+                    });
+                }
                 window.gameState.gitState.headRef = 'refs/heads/' + (lesson.initialGitState.currentBranch || 'main');
                 window.gameState.gitState.head = headsByBranch[lesson.initialGitState.currentBranch || 'main'] || null;
                 window.gameState.gitState.index = {};

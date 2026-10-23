@@ -276,10 +276,10 @@ git rebase -i HEAD~3</code></pre>
             branches: ['main', 'feature'],
             currentBranch: 'feature',
             commits: [
-                { message: 'Initial commit', author: 'You', files: ['README.md'] },
-                { message: 'feat: base app', author: 'You', files: ['app.js'] },
-                { message: 'WIP: feature', author: 'You', files: ['feature.js'] },
-                { message: 'WIP: polish', author: 'You', files: ['feature.js'] }
+                { message: 'Initial commit', author: 'You', files: ['README.md'], branch: 'main' },
+                { message: 'feat: base app', author: 'You', files: ['app.js'], branch: 'main' },
+                { message: 'WIP: feature', author: 'You', files: ['feature.js'], branch: 'feature' },
+                { message: 'WIP: polish', author: 'You', files: ['feature.js'], branch: 'feature' }
             ]
         },
         initialWorkspaceFiles: {
@@ -408,9 +408,10 @@ git pull --ff-only upstream main
                 { message: 'feat: collaborative scaffold', author: 'You', files: ['app.js'] }
             ]
         },
+        initialRemotes: {},
         initialWorkspaceFiles: {
             'README.md': '# Remote Collaboration\n\nWork with origin and upstream remotes.\n',
-            'app.js': 'console.log("collaboration flow");\n'
+            'app.js': 'export const collaborationStatus = "ready";\n'
         },
         boss: null
     },
@@ -444,9 +445,10 @@ git pull --ff-only upstream main
             currentBranch: 'feature/final-capstone',
             commits: [{ message: 'Initial commit', author: 'Team', files: ['README.md'] }]
         },
+        initialRemotes: {},
         initialWorkspaceFiles: {
             'README.md': '# Grand Capstone\n\nRemote-first workflow, merge on green only.\n',
-            'app.js': 'console.log("grand capstone");\n'
+            'app.js': 'export const capstoneStatus = "ready";\n'
         },
         finalExam: true,
         boss: {

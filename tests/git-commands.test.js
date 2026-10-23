@@ -70,6 +70,8 @@ function setupGitCommands() {
   };
 
   vm.createContext(context);
+  const coreSource = fs.readFileSync(path.join(__dirname, '..', 'js', 'git-core.js'), 'utf8');
+  vm.runInContext(coreSource, context);
   const source = fs.readFileSync(path.join(__dirname, '..', 'js', 'git-commands.js'), 'utf8');
   vm.runInContext(source, context);
 
