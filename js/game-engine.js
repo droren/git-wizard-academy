@@ -714,9 +714,13 @@ const gameEngine = {
             window.gameState.flags.ciChecksPassed = ci.passed;
             if (!ci.passed) {
                 this.updateLiveGitHubStatus('Simulated review blocked PR #' + pr.number + ': CI failed for ' + ci.failingFiles.join(', ') + '.');
+                this.checkObjectives();
+                this.saveGame();
                 return { simulated: true, result: { problems: ci.failingFiles, merged: false } };
             }
             const mergeResult = await this.mergeLiveGitHubPr();
+            this.checkObjectives();
+            this.saveGame();
             return { simulated: true, result: { problems: [], merged: !!mergeResult } };
         }
         const state = this.getLiveGitHubState();
@@ -732,6 +736,8 @@ const gameEngine = {
         this.updateLiveGitHubStatus(result.result && result.result.problems && result.result.problems.length
             ? 'Review bot left feedback on PR #' + state.lastPr.number + '.'
             : 'Review bot found no blocking issues.');
+        this.checkObjectives();
+        this.saveGame();
         return result;
     },
 

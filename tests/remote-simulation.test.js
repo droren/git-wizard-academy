@@ -152,9 +152,16 @@ async function run() {
   w.gameState.gitState.currentBranch = 'feature';
   w.gameState.gitState.refs.feature = 'd'.repeat(40);
   await w.gameEngine.createLiveGitHubPr();
+  // Review completion must evaluate objectives and persist state for both failed and green CI paths.
+  let objectiveChecks = 0;
+  let saves = 0;
+  w.gameEngine.checkObjectives = () => { objectiveChecks += 1; };
+  w.gameEngine.saveGame = () => { saves += 1; };
   const reviewResult = await w.gameEngine.runLiveGitHubReviewBot();
   assert(reviewResult.simulated, 'review should run in simulated mode');
   assert.strictEqual(reviewResult.result.merged, false, 'merge must be blocked when CI checks fail');
+  assert.strictEqual(objectiveChecks, 1, 'failed review must still evaluate objectives');
+  assert.strictEqual(saves, 1, 'failed review must still persist progress');
 
   // A clean simulated PR must record the same progression evidence as Live GitHub Mode.
   w.gameState.gitState.currentBranch = 'feature';
@@ -163,8 +170,12 @@ async function run() {
   const cleanPr = await w.gameEngine.createLiveGitHubPr();
   assert(cleanPr.simulated, 'clean PR should run in simulated mode');
   assert.strictEqual(w.gameState.flags.createdPullRequest, true, 'simulated PR creation should satisfy PR objective evidence');
+  objectiveChecks = 0;
+  saves = 0;
   const cleanReview = await w.gameEngine.runLiveGitHubReviewBot();
   assert.strictEqual(cleanReview.result.merged, true, 'clean simulated PR should merge after review');
+  assert.strictEqual(objectiveChecks, 1, 'review workflow must evaluate objectives before returning');
+  assert.strictEqual(saves, 1, 'review workflow must persist progress before returning');
   assert.strictEqual(w.gameState.flags.reviewedPullRequest, true, 'simulated review should satisfy review objective evidence');
   assert.strictEqual(w.gameState.flags.ciChecksPassed, true, 'simulated green CI should satisfy CI objective evidence');
   assert.strictEqual(w.gameState.flags.mergedWhenChecksPass, true, 'simulated green merge should satisfy merge gate evidence');
